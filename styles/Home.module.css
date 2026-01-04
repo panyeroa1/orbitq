@@ -414,3 +414,82 @@
     font-size: 2.5rem;
   }
 }
+
+/* Zig Zag Feature Layout */
+.zigZagSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6rem;
+  padding: 4rem 0;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.zigZagRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4rem;
+}
+
+.rowReverse {
+  flex-direction: row-reverse;
+}
+
+.zigZagContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.zigZagContent h2 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin: 0;
+  background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.7) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.zigZagContent p {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 1.15rem;
+  line-height: 1.7;
+  margin: 0;
+  max-width: 480px;
+}
+
+.zigZagVisual {
+  flex: 1.2;
+  position: relative;
+}
+
+.featureImg {
+  width: 100%;
+  height: auto;
+  border-radius: 24px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.zigZagRow:hover .featureImg {
+  transform: translateY(-10px);
+}
+
+/* Responsive Zig Zag */
+@media (max-width: 900px) {
+  .zigZagRow, .rowReverse {
+    flex-direction: column;
+    text-align: center;
+    gap: 2rem;
+  }
+  
+  .zigZagContent p {
+    margin: 0 auto;
+  }
+}
