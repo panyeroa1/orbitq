@@ -17,10 +17,8 @@ type LiveCaptionsProps = {
   enabled: boolean;
   vadEnabled: boolean;
   broadcastEnabled: boolean;
-  engine: 'deepgram' | 'webspeech';
   language: string;
   audioSource: 'auto' | 'microphone' | 'screen';
-  onEngineFallback?: (engine: 'deepgram') => void;
   onTranscriptSegment?: (segment: TranscriptSegment) => void;
 };
 
@@ -37,44 +35,26 @@ export function LiveCaptions({
   enabled,
   vadEnabled,
   broadcastEnabled,
-  engine,
   language,
   audioSource,
-  onEngineFallback,
   onTranscriptSegment,
 }: LiveCaptionsProps) {
   const [caption, setCaption] = React.useState('');
   const [statusMessage, setStatusMessage] = React.useState('');
   const [lastUpdateAt, setLastUpdateAt] = React.useState<number | null>(null);
-  const [audioSourceVersion, setAudioSourceVersion] = React.useState(0);
   const captureEnabled = broadcastEnabled || enabled;
 
   // Refs for managing state without re-renders during callbacks
-  const recorderRef = React.useRef<MediaRecorder | null>(null);
-  const streamRef = React.useRef<MediaStream | null>(null);
   const recognitionRef = React.useRef<any>(null);
 
-  const ownsStreamRef = React.useRef(false);
   const enabledRef = React.useRef(enabled);
-  const engineRef = React.useRef(engine);
   const audioSourceRef = React.useRef(audioSource);
-  const inFlightRef = React.useRef(false);
-  const fallbackTriggeredRef = React.useRef(false);
-  const vadEnabledRef = React.useRef(vadEnabled);
-  const vadLastVoiceAtRef = React.useRef(0);
-  const vadLoopRef = React.useRef<number | null>(null);
-  const vadAnalyserRef = React.useRef<ReturnType<typeof createAudioAnalyser> | null>(null);
-
-  const VAD_THRESHOLD = 0.02;
-  const VAD_HANGOVER_MS = 700;
 
   // Sync refs
   React.useEffect(() => {
     enabledRef.current = captureEnabled;
-    engineRef.current = engine;
     audioSourceRef.current = audioSource;
-    vadEnabledRef.current = vadEnabled;
-  }, [captureEnabled, engine, audioSource, vadEnabled]);
+  }, [captureEnabled, audioSource]);
 
   React.useEffect(() => {
     if (!enabled) {
@@ -92,255 +72,15 @@ export function LiveCaptions({
     setStatusMessage('');
   }, [enabled, captureEnabled]);
 
-  React.useEffect(() => {
-    if (engine !== 'webspeech') {
-      fallbackTriggeredRef.current = false;
-    }
-  }, [engine]);
-
-  const triggerFallback = React.useCallback(
-    (reason: string) => {
-      if (fallbackTriggeredRef.current || engineRef.current !== 'webspeech') {
-        return;
-      }
-      fallbackTriggeredRef.current = true;
-      console.warn('Web Speech failed, falling back to Deepgram:', reason);
-      setStatusMessage('Web Speech unavailable. Switching to Deepgram...');
-      onEngineFallback?.('deepgram');
-    },
-    [onEngineFallback],
-  );
-
-  // Cleanup timeout
-  const cleanupVAD = React.useCallback(async () => {
-    if (vadLoopRef.current) {
-      clearInterval(vadLoopRef.current);
-      vadLoopRef.current = null;
-    }
-    if (vadAnalyserRef.current) {
-      try {
-        await vadAnalyserRef.current.cleanup();
-      } catch (error) {
-        console.warn('Failed to cleanup VAD analyser', error);
-      }
-      vadAnalyserRef.current = null;
-    }
-  }, []);
-
-
-  const startVAD = React.useCallback(
-    async (track?: LocalAudioTrack) => {
-      if (!vadEnabledRef.current || !track) {
-        await cleanupVAD();
-        return;
-      }
-      await cleanupVAD();
-      try {
-        vadAnalyserRef.current = createAudioAnalyser(track, {
-          fftSize: 512,
-          smoothingTimeConstant: 0.85,
-          minDecibels: -90,
-          maxDecibels: -30,
-        });
-        
-        // Use setInterval instead of requestAnimationFrame for background persistence
-        vadLoopRef.current = window.setInterval(() => {
-          if (!vadAnalyserRef.current) return;
-          const volume = vadAnalyserRef.current.calculateVolume();
-          if (volume > VAD_THRESHOLD) {
-            vadLastVoiceAtRef.current = Date.now();
-          }
-        }, 100); // Check every 100ms
-      } catch (error) {
-        console.warn('VAD setup failed', error);
-      }
-    },
-    [cleanupVAD],
-  );
-
-  React.useEffect(() => {
-    if (!vadEnabled) {
-      cleanupVAD();
-    }
-  }, [vadEnabled, cleanupVAD]);
-
-  React.useEffect(() => {
-    if (!room || !captureEnabled) {
-      return;
-    }
-
-    const handleLocalTrackChange = (publication: any) => {
-      const source = publication?.source;
-      if (source === Track.Source.Microphone || source === Track.Source.ScreenShareAudio) {
-        setAudioSourceVersion((prev) => prev + 1);
-      }
-    };
-
-    room.on(RoomEvent.LocalTrackPublished, handleLocalTrackChange);
-    room.on(RoomEvent.LocalTrackUnpublished, handleLocalTrackChange);
-
-    return () => {
-      room.off(RoomEvent.LocalTrackPublished, handleLocalTrackChange);
-      room.off(RoomEvent.LocalTrackUnpublished, handleLocalTrackChange);
-    };
-  }, [room, captureEnabled]);
-
-  // Stream Setup Helper
-  const setupStream = React.useCallback(async (): Promise<MediaStream | null> => {
-    let stream: MediaStream | null = null;
-    let ownsStream = false;
-
-    const micPublication = room?.localParticipant.getTrackPublication(Track.Source.Microphone);
-    const screenPublication = room?.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio);
-    const micTrack = micPublication?.track as LocalAudioTrack | undefined;
-    const screenTrack = screenPublication?.track as LocalAudioTrack | undefined;
-
-    const shouldUseScreen =
-      audioSourceRef.current === 'screen' ||
-      (audioSourceRef.current === 'auto' && !!screenTrack?.mediaStreamTrack);
-
-    if (shouldUseScreen) {
-      const mediaStreamTrack = screenTrack?.mediaStreamTrack;
-      if (mediaStreamTrack) {
-        stream = new MediaStream([mediaStreamTrack]);
-        await startVAD(screenTrack);
-      } else {
-        setStatusMessage('Share a tab with audio to start captions.');
-        return null;
-      }
-    } else {
-      const mediaStreamTrack = micTrack?.mediaStreamTrack;
-      if (mediaStreamTrack) {
-        stream = new MediaStream([mediaStreamTrack]);
-        await startVAD(micTrack);
-      } else {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          ownsStream = true;
-          await startVAD(undefined);
-        } catch (err) {
-          console.warn('Could not get user media', err);
-          return null;
-        }
-      }
-    }
-
-    ownsStreamRef.current = ownsStream;
-    streamRef.current = stream;
-    setStatusMessage('');
-    return stream;
-  }, [room, startVAD]);
-
-  // Deepgram Effect
-  React.useEffect(() => {
-    if (!captureEnabled || engine !== 'deepgram') {
-      return;
-    }
-
-    let cancelled = false;
-
-    const startDeepgram = async () => {
-      const stream = await setupStream();
-      if (!stream || cancelled) return;
-
-      const preferredType = 'audio/webm;codecs=opus';
-      const mimeType = MediaRecorder.isTypeSupported(preferredType) ? preferredType : 'audio/webm';
-      const recorder = new MediaRecorder(stream, { mimeType });
-      recorderRef.current = recorder;
-
-      recorder.ondataavailable = async (event) => {
-        if (!enabledRef.current || engineRef.current !== 'deepgram' || !event.data || event.data.size === 0) return;
-        if (inFlightRef.current) return;
-        if (vadEnabledRef.current) {
-          const now = Date.now();
-          if (!vadLastVoiceAtRef.current || now - vadLastVoiceAtRef.current > VAD_HANGOVER_MS) {
-            return;
-          }
-        }
-
-        inFlightRef.current = true;
-        try {
-          const buffer = await event.data.arrayBuffer();
-          // construct query params
-          let url = '/api/transcription';
-          if (language && language !== 'auto') {
-             url += `?language=${language}`;
-          }
-
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': event.data.type || 'audio/webm' },
-            body: buffer,
-          });
-          
-          if (!response.ok) {
-             inFlightRef.current = false;
-             return;
-          }
-          const data = await response.json();
-          const transcript = typeof data?.transcript === 'string' ? data.transcript.trim() : '';
-          if (transcript) {
-            setCaption(transcript);
-            setLastUpdateAt(Date.now());
-            onTranscriptSegment?.({
-              text: transcript,
-              source: audioSourceRef.current,
-              timestamp: Date.now(),
-              isFinal: true,
-              language,
-            });
-          }
-        } catch (error) {
-          console.error('Data send failed', error);
-        } finally {
-          inFlightRef.current = false;
-        }
-      };
-
-      recorder.onstop = () => {
-        if (!cancelled && enabledRef.current && engineRef.current === 'deepgram') {
-             // Small delay to prevent tight loops in error cases
-             setTimeout(() => {
-                 if (recorder.state === 'inactive') {
-                     recorder.start();
-                     setTimeout(() => {
-                         if (recorder.state === 'recording') recorder.stop();
-                     }, 1000);
-                 }
-             }, 10);
-        }
-      };
-
-      // Initial start
-      recorder.start();
-      setTimeout(() => {
-        if (recorder.state === 'recording') recorder.stop();
-      }, 1000);
-    };
-
-    startDeepgram();
-
-    return () => {
-      cancelled = true;
-      if (recorderRef.current?.state !== 'inactive') recorderRef.current?.stop();
-      recorderRef.current = null;
-      if (ownsStreamRef.current && streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-      }
-      streamRef.current = null;
-      cleanupVAD();
-    };
-  }, [captureEnabled, engine, language, room, audioSource, audioSourceVersion, onTranscriptSegment, setupStream, cleanupVAD]);
-
   // Web Speech API Effect
   React.useEffect(() => {
-    if (!captureEnabled || engine !== 'webspeech') {
+    if (!captureEnabled) {
       return;
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      triggerFallback('api_unavailable');
+      setStatusMessage('Web Speech API is not supported in this browser.');
       return;
     }
 
@@ -381,13 +121,17 @@ export function LiveCaptions({
 
     recognition.onerror = (event: any) => {
       console.warn('Speech recognition error', event.error);
+      if (event.error === 'not-allowed') {
+        setStatusMessage('Microphone access denied for speech recognition.');
+      } else if (event.error === 'network') {
+        setStatusMessage('Network error occurred during speech recognition.');
+      }
       recognition.stop();
-      triggerFallback(event.error || 'unknown_error');
     };
 
     recognition.onend = () => {
       // Auto-restart if still enabled (and not just stopped by error handler)
-      if (enabledRef.current && engineRef.current === 'webspeech') {
+      if (enabledRef.current) {
         try {
           recognition.start();
         } catch (e) {
@@ -396,14 +140,18 @@ export function LiveCaptions({
       }
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error('Failed to start speech recognition', e);
+    }
 
     return () => {
       recognition.onend = null; // Prevent restart loop on cleanup
       recognition.stop();
       recognitionRef.current = null;
     };
-  }, [captureEnabled, engine, language, onTranscriptSegment, triggerFallback]);
+  }, [captureEnabled, language, onTranscriptSegment]);
 
   // Cleanup timeout
   React.useEffect(() => {

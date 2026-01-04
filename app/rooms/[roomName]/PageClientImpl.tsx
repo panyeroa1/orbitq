@@ -327,8 +327,8 @@ function BroadcastPanel({
   onContinuousSaveChange: (enabled: boolean) => void;
   captionLanguage: string;
   onCaptionLanguageChange: (lang: string) => void;
-  captionEngine: 'deepgram' | 'webspeech';
-  onCaptionEngineChange: (engine: 'deepgram' | 'webspeech') => void;
+  captionEngine: 'webspeech';
+  onCaptionEngineChange: (engine: 'webspeech') => void;
   captionAudioSource: 'auto' | 'microphone' | 'screen';
   onCaptionAudioSourceChange: (source: 'auto' | 'microphone' | 'screen') => void;
   onSaveTranscription: () => void;
@@ -400,16 +400,8 @@ function BroadcastPanel({
         <div className={roomStyles.sidebarCard}>
           <div className={roomStyles.sidebarCardText}>
             <span className={roomStyles.sidebarCardLabel}>Caption Engine</span>
+            <span className={roomStyles.sidebarCardHint}>Using Web Speech API.</span>
           </div>
-          <select
-            title="Caption Engine"
-            className={roomStyles.sidebarSelect}
-            value={captionEngine}
-            onChange={(event) => onCaptionEngineChange(event.target.value as 'deepgram' | 'webspeech')}
-          >
-            <option value="deepgram">Deepgram</option>
-            <option value="webspeech">Web Speech</option>
-          </select>
         </div>
 
         <div className={roomStyles.sidebarCard}>
@@ -935,7 +927,7 @@ function VideoConferenceComponent(props: {
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [captionsEnabled, setCaptionsEnabled] = React.useState(true);
   const [isBroadcasting, setIsBroadcasting] = React.useState(false);
-  const [captionEngine, setCaptionEngine] = React.useState<'deepgram' | 'webspeech'>('webspeech');
+  const [captionEngine, setCaptionEngine] = React.useState<'webspeech'>('webspeech');
   const [captionLanguage, setCaptionLanguage] = React.useState('auto');
   const [captionAudioSource, setCaptionAudioSource] = React.useState<'auto' | 'microphone' | 'screen'>('auto');
   const [transcriptSegments, setTranscriptSegments] = React.useState<TranscriptSegment[]>([]);
@@ -1907,10 +1899,8 @@ function VideoConferenceComponent(props: {
               enabled={captionsEnabled} 
               vadEnabled={vadEnabled}
               broadcastEnabled={isBroadcasting}
-              engine={captionEngine}
               language={captionLanguage}
               audioSource={captionAudioSource}
-              onEngineFallback={setCaptionEngine}
               onTranscriptSegment={handleTranscriptSegment}
             />
           </div>
