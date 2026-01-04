@@ -671,6 +671,11 @@ function TranslatePanel({
             <option value="ollama">Ollama (Gemini 3 Flash Preview: cloud)</option>
             <option value="gemini">Gemini Flash Lite (Google)</option>
           </select>
+          <div className={roomStyles.clipContentSection}>
+            <button className={roomStyles.sidebarCardButton} disabled={!transcriptions.length}>
+              Add clip to content
+            </button>
+          </div>
         </div>
 
         <div className={roomStyles.sidebarCard}>
