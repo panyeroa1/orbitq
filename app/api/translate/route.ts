@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 type TranslationBody = {
   text: string;
   targetLanguage: string;
-  provider?: 'google' | 'ollama';
+  provider?: 'google' | 'ollama' | 'gemini';
 };
 
 export async function POST(request: Request) {
@@ -55,47 +55,104 @@ export async function POST(request: Request) {
       return NextResponse.json({ translatedText });
     }
 
-    const apiKey = process.env.OLLAMA_API_KEY;
-    const baseUrl = process.env.OLLAMA_BASE_URL;
-    const model = process.env.OLLAMA_MODEL || 'gemini-3-flash-preview:cloud';
+    if (provider === 'ollama') {
+      const apiKey = process.env.OLLAMA_API_KEY;
+      const baseUrl = process.env.OLLAMA_BASE_URL;
+      const model = process.env.OLLAMA_MODEL || 'gemini-3-flash-preview:cloud';
 
-    if (!apiKey || !baseUrl) {
-      return new NextResponse('Ollama not configured', { status: 503 });
+      if (!apiKey || !baseUrl) {
+        return new NextResponse('Ollama not configured', { status: 503 });
+      }
+
+      const systemPrompt = `You are a professional real-time translator. Translate the given text into ${targetLanguage}.\nOutput ONLY the translated text. Do not include explanations, notes, or quotes. \nKeep the tone warm, conversational, and ready for spoken playback.`;
+
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: text },
+          ],
+          temperature: 0.3,
+          max_tokens: 500,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('Ollama API error:', errorData);
+        return new NextResponse('Translation failed', { status: 500 });
+      }
+
+      const data = await response.json();
+      const translatedText = data.choices?.[0]?.message?.content?.trim();
+
+      if (!translatedText) {
+        return new NextResponse('Empty translation returned', { status: 500 });
+      }
+
+      return NextResponse.json({ translatedText });
     }
 
-    const systemPrompt = `You are a professional real-time translator. Translate the given text into ${targetLanguage}.\nOutput ONLY the translated text. Do not include explanations, notes, or quotes. \nKeep the tone warm, conversational, and ready for spoken playback.`;
+    if (provider === 'gemini') {
+      const apiKey = process.env.GEMINI_API_KEY;
+      const model = process.env.GEMINI_MODEL_ID || 'gemini-flash-lite-latest';
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text },
-        ],
-        temperature: 0.3,
-        max_tokens: 500,
-      }),
-    });
+      if (!apiKey) {
+        return new NextResponse('Gemini API key not configured', { status: 503 });
+      }
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Ollama API error:', errorData);
-      return new NextResponse('Translation failed', { status: 500 });
+      const prompt = `Translate the following text into ${targetLanguage} while retaining the speaker’s tone, cadence, and nuances for natural TTS playback:\n\n${text}`;
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: prompt }],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.35,
+              candidateCount: 1,
+              thinkingConfig: {
+                thinkingBudget: 0,
+              },
+            },
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Gemini API error:', errorText);
+        return new NextResponse('Translation failed', { status: 500 });
+      }
+
+      const data = await response.json();
+      const translatedText =
+        data?.candidates?.[0]?.content?.[0]?.text?.trim() ??
+        data?.candidates?.[0]?.content?.map((part: any) => part?.text ?? '').join('')?.trim();
+
+      if (!translatedText) {
+        return new NextResponse('Empty translation returned', { status: 500 });
+      }
+
+      return NextResponse.json({ translatedText });
     }
 
-    const data = await response.json();
-    const translatedText = data.choices?.[0]?.message?.content?.trim();
-
-    if (!translatedText) {
-      return new NextResponse('Empty translation returned', { status: 500 });
-    }
-
-    return NextResponse.json({ translatedText });
+    return new NextResponse('Unknown provider', { status: 400 });
   } catch (error) {
     console.error('Translation route error:', error);
     return new NextResponse('Internal error', { status: 500 });

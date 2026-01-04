@@ -903,3 +903,39 @@ How it was tested:
 
 Test result:
 - PASS
+
+Task ID: T-0035
+Title: Update TTS to Sonic-3 and WAV/PCM Format
+Status: DONE
+Owner: Miles
+
+START LOG
+
+Timestamp: 2026-01-04 12:50
+Current behavior:
+- TTS using older Cartesia version and MP3 format.
+
+Plan and scope:
+- Update `.env.local` with new API key and Voice ID from user.
+- Update `/api/tts/route.ts` to use `Cartesia-Version: 2025-04-16`.
+- Switch output format to `wav` with `pcm_f32le` encoding.
+- Add `generation_config` (speed, volume, emotion).
+
+END LOG
+
+Timestamp: 2026-01-04 12:53
+Summary of what actually changed:
+- Updated `.env.local` with the new Cartesia credentials.
+- Updated the TTS backend to the requested specification (Sonic-3 model, WAV PCM output, and 2025-04-16 API version).
+- Verified the new setup produces valid WAV audio via local tests.
+
+Files actually modified:
+- .env.local
+- app/api/tts/route.ts
+
+How it was tested:
+- Local `curl` test (Success, generated 152k WAV file).
+- `npm run lint` and `npx tsc --noEmit` (Passed).
+
+Test result:
+- PASS

@@ -75,7 +75,7 @@ type TranslationEntry = {
   speakerId: string;
   source: string;
   translated: string;
-  engine: 'google' | 'ollama';
+  engine: 'google' | 'ollama' | 'gemini';
   timestamp: number;
 };
 
@@ -499,8 +499,8 @@ function TranslatePanel({
   onListenTranslationClick: () => void;
   targetLanguage: string;
   onTargetLanguageChange: (lang: string | ((prev: string) => string)) => void;
-  translationEngine: 'google' | 'ollama';
-  onTranslationEngineChange: (engine: 'google' | 'ollama') => void;
+  translationEngine: 'google' | 'ollama' | 'gemini';
+  onTranslationEngineChange: (engine: 'google' | 'ollama' | 'gemini') => void;
   transcriptions: { id: string; speakerId: string; text: string; timestamp: number }[];
   translationLog: TranslationEntry[];
   translationVoiceSelection: 'default' | 'custom';
@@ -651,10 +651,11 @@ function TranslatePanel({
             aria-label="Translation Engine"
             className={roomStyles.sidebarSelect}
             value={translationEngine}
-            onChange={(event) => onTranslationEngineChange(event.target.value as 'google' | 'ollama')}
+            onChange={(event) => onTranslationEngineChange(event.target.value as 'google' | 'ollama' | 'gemini')}
           >
             <option value="google">Google Translate (auto)</option>
             <option value="ollama">Ollama (Gemini 3 Flash Preview: cloud)</option>
+            <option value="gemini">Gemini Flash Lite (Google)</option>
           </select>
         </div>
 
@@ -750,7 +751,13 @@ function TranslatePanel({
                     </p>
                     <p className={`${roomStyles.transcriptText} ${roomStyles.translationHighlight}`}>
                       <strong>
-                        Translated ({entry.engine === 'google' ? 'Google' : 'Ollama'}):
+                        Translated (
+                        {entry.engine === 'google'
+                          ? 'Google'
+                          : entry.engine === 'ollama'
+                          ? 'Ollama'
+                          : 'Gemini'}
+                        ):
                       </strong>{' '}
                       {entry.translated}
                     </p>
@@ -884,7 +891,7 @@ function VideoConferenceComponent(props: {
   const [captionLanguage, setCaptionLanguage] = React.useState('auto');
   const [captionAudioSource, setCaptionAudioSource] = React.useState<'auto' | 'microphone' | 'screen'>('auto');
   const [transcriptSegments, setTranscriptSegments] = React.useState<TranscriptSegment[]>([]);
-  const [continuousSaveEnabled, setContinuousSaveEnabled] = React.useState(false);
+  const [continuousSaveEnabled, setContinuousSaveEnabled] = React.useState(true);
   const [voiceFocusEnabled, setVoiceFocusEnabled] = React.useState(true);
   const [vadEnabled, setVadEnabled] = React.useState(true);
   const [noiseSuppressionEnabled, setNoiseSuppressionEnabled] = React.useState(true);
@@ -904,7 +911,7 @@ function VideoConferenceComponent(props: {
   const [transcriptions, setTranscriptions] = React.useState<{ id: string; speakerId: string; text: string; timestamp: number }[]>([]);
   const lastSeenTextMap = React.useRef<Map<string, string>>(new Map());
   const layoutContext = useCreateLayoutContext();
-  const [translationEngine, setTranslationEngine] = React.useState<'google' | 'ollama'>('google');
+  const [translationEngine, setTranslationEngine] = React.useState<'google' | 'ollama' | 'gemini'>('google');
   const [translationLog, setTranslationLog] = React.useState<TranslationEntry[]>([]);
   const [translationVoiceSelection, setTranslationVoiceSelection] = React.useState<'default' | 'custom'>(
     'default',
