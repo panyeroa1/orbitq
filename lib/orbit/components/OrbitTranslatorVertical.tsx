@@ -36,28 +36,151 @@ interface OrbitTranslatorVerticalProps {
   onLiveTextChange?: (text: string) => void;
 }
 
+import { supabase } from '@/lib/orbit/services/supabaseClient';
+import { LANGUAGES } from '@/lib/orbit/types';
+
 export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: OrbitTranslatorVerticalProps) {
+  // -- Original State --
   const [mode, setMode] = useState<'idle' | 'speaking'>('idle');
   const [transcript, setTranscript] = useState('');
-  const [liveText, setLiveText] = useState(''); // Real-time subtitle
+  const [liveText, setLiveText] = useState('');
   const [isLockedByOther, setIsLockedByOther] = useState(false);
   const [roomUuid, setRoomUuid] = useState<string | null>(null);
 
   const recognitionRef = useRef<any>(null);
 
-  // Initialize Room UUID
-  useEffect(() => {
-    async function init() {
-      const uuid = await orbitService.ensureRoomState(roomCode);
-      setRoomUuid(uuid);
+  // -- Translation & TTS State --
+  const [selectedLanguage, setSelectedLanguage] = useState(LANGUAGES[0]);
+  const [isListening, setIsListening] = useState(false);
+  const [isLangOpen, setIsLangOpen] = useState(false);
+  
+  // Audio Playback State
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioQueueRef = useRef<ArrayBuffer[]>([]);
+  const isPlayingRef = useRef(false);
+  const processingQueueRef = useRef<any[]>([]);
+  const isProcessingRef = useRef(false);
+
+  // Constants
+  const MY_USER_ID = userId;
+
+  const ensureAudioContext = useCallback(() => {
+    if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
-    init();
-  }, [roomCode]);
+    if (audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  }, []);
+
+  const playNextAudio = async () => {
+    if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
+    isPlayingRef.current = true;
+
+    const ctx = ensureAudioContext();
+    if (!ctx) {
+      isPlayingRef.current = false;
+      return;
+    }
+
+    const nextBuffer = audioQueueRef.current.shift();
+    if (!nextBuffer) {
+      isPlayingRef.current = false;
+      return;
+    }
+
+    try {
+      const audioBuffer = await ctx.decodeAudioData(nextBuffer);
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+      source.onended = () => {
+        isPlayingRef.current = false;
+        playNextAudio();
+      };
+      source.start();
+    } catch (e) {
+      console.error("Audio playback error", e);
+      isPlayingRef.current = false;
+      playNextAudio();
+    }
+  };
+
+  const processNextInQueue = async () => {
+    if (isProcessingRef.current || processingQueueRef.current.length === 0) return;
+    isProcessingRef.current = true;
+
+    const item = processingQueueRef.current.shift();
+    if (!item) {
+        isProcessingRef.current = false;
+        return;
+    }
+
+    try {
+        // 1. Translate
+        const tRes = await fetch('/api/orbit/translate', {
+            method: 'POST',
+            body: JSON.stringify({
+                text: item.text,
+                targetLang: selectedLanguage.code
+            })
+        });
+        const tData = await tRes.json();
+        let translated = tData.translation || item.text;
+        
+        // Show translated text temporarily as live text if listening
+        if (isListening) {
+             setLiveText(translated); 
+             // Clear after delay or let next segment replace
+        }
+
+        // 2. TTS
+        if (isListening) {
+             const ttsRes = await fetch('/api/orbit/tts', {
+                method: 'POST',
+                body: JSON.stringify({ text: translated })
+             });
+             const arrayBuffer = await ttsRes.arrayBuffer();
+             if (arrayBuffer.byteLength > 0) {
+                 audioQueueRef.current.push(arrayBuffer);
+                 playNextAudio();
+             }
+        }
+    } catch (e) {
+        console.error("Pipeline error", e);
+    } finally {
+        isProcessingRef.current = false;
+        processNextInQueue();
+    }
+  };
 
   // Subscribe to Room State for Lock status
   useEffect(() => {
     if (!roomUuid) return;
     
+    // Subscribe to DB Transcripts for Translation
+    // We listen to ALL transcripts, filter out our own, and if isListening is true, we translate them.
+    const channel = supabase.channel(`room:${roomUuid}:transcripts_sidebar`)
+    .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'transcript_segments',
+        filter: `meeting_id=eq.${roomUuid}`
+    }, (payload: any) => {
+        if (payload.new.speaker_id !== MY_USER_ID) {
+            // Someone else spoke
+            // Update transcript view? 
+            setTranscript(payload.new.source_text); // Simple update
+
+            if (isListening) {
+                processingQueueRef.current.push({ text: payload.new.source_text });
+                processNextInQueue();
+            }
+        }
+    })
+    .subscribe();
+
     const sub = orbitService.subscribeToRoomState(roomUuid, (state) => {
       const activeSpeaker = state.active_speaker_user_id;
       setIsLockedByOther(!!activeSpeaker && activeSpeaker !== userId);
@@ -65,8 +188,35 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
 
     return () => {
       sub.unsubscribe();
+      supabase.removeChannel(channel);
     };
-  }, [roomUuid, userId]);
+  }, [roomUuid, userId, isListening, selectedLanguage]); // Re-sub if language/listening changes? No, logic is in callback. But callback captures closure. 
+  // Actually, Effect deps need careful handling. 
+  // Better to use Ref for selectedLanguage and isListening in the callback
+  
+  const selectedLanguageRef = useRef(selectedLanguage);
+  useEffect(() => { selectedLanguageRef.current = selectedLanguage; }, [selectedLanguage]);
+  
+  const isListeningRef = useRef(isListening);
+  useEffect(() => { isListeningRef.current = isListening; }, [isListening]);
+
+  // FIX: Re-implement subscription to use refs inside
+  useEffect(() => {
+      if (!roomUuid) return;
+      const channel = supabase.channel(`room:${roomCode}:transcripts_v2`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transcript_segments', filter: `meeting_id=eq.${roomCode}` }, (payload: any) => {
+             if (payload.new.speaker_id !== MY_USER_ID) {
+                 setTranscript(payload.new.source_text);
+                 if (isListeningRef.current) {
+                     processingQueueRef.current.push({ text: payload.new.source_text });
+                     processNextInQueue();
+                 }
+             }
+        })
+        .subscribe();
+      return () => { supabase.removeChannel(channel); };
+  }, [roomCode, MY_USER_ID]);
+
 
   // Start WebSpeech for real-time subtitles
   const startWebSpeech = useCallback(() => {
@@ -76,7 +226,7 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = navigator.language || 'en-US';
+    recognition.lang = selectedLanguage.code === 'auto' ? 'en-US' : selectedLanguage.code;
 
     recognition.onresult = async (event: any) => {
       let interim = '';
@@ -91,30 +241,15 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
         }
       }
 
-      // Show live text (interim or final)
       setLiveText(interim || final);
 
-      // When we get a final result, segment into sentences and save each
       if (final.trim() && roomUuid) {
         setTranscript(final);
         setLiveText('');
         
-        // Split into sentences (handles . ! ? and common patterns)
-        const sentences = final
-          .split(/(?<=[.!?])\s+/)
-          .map(s => s.trim())
-          .filter(s => s.length > 0);
-        
-        console.log('Pipeline: Saving sentences:', sentences);
-        
-        // Just Save for STT
+        const sentences = final.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 0);
         for (const sentence of sentences) {
-            try {
-              const utterance = await orbitService.saveUtterance(roomUuid, userId, sentence);
-              console.log('Saved utterance:', utterance?.id);
-            } catch (saveErr) {
-              console.warn('Save skipped (DB not configured):', saveErr);
-            }
+            orbitService.saveUtterance(roomUuid, userId, sentence, selectedLanguageRef.current.code).catch(e => console.warn(e));
         }
       }
     };
@@ -124,19 +259,14 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
     };
 
     recognition.onend = () => {
-      // Auto-restart if still speaking
       if (mode === 'speaking' && recognitionRef.current) {
-        try {
-          recognition.start();
-        } catch (e) {
-          // Ignore
-        }
+        try { recognition.start(); } catch (e) {}
       }
     };
 
     recognition.start();
     recognitionRef.current = recognition;
-  }, [roomUuid, userId, mode]);
+  }, [roomUuid, userId, mode, selectedLanguage]);
 
   // Stop WebSpeech
   const stopWebSpeech = useCallback(() => {
@@ -154,13 +284,11 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
       toast.error('Connecting to room...');
       return;
     }
-
     const acquired = await orbitService.acquireSpeakerLock(roomCode, userId);
     if (!acquired) {
       toast.error('Someone else is speaking');
       return;
     }
-
     startWebSpeech();
     setMode('speaking');
   }, [mode, roomCode, roomUuid, userId, startWebSpeech]);
@@ -189,6 +317,18 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
 
   const speakDisabled = isLockedByOther || !roomUuid;
 
+  // Language Dropdown reference
+  const langMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+      function handleClickOutside(event: any) {
+          if (langMenuRef.current && !langMenuRef.current.contains(event.target)) {
+              setIsLangOpen(false);
+          }
+      }
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => { document.removeEventListener("mousedown", handleClickOutside); };
+  }, [langMenuRef]);
+
   return (
     <div className={styles.container}>
       {/* Header */}
@@ -199,7 +339,7 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
         <div className={`${styles.headerStatus} ${getStatusClass()}`}>● {getStatusText()}</div>
       </div>
 
-      {/* Global Subtitle Overlay (rendered above control bar via portal) */}
+      {/* Global Subtitle Overlay */}
       {typeof document !== 'undefined' && (
         <OrbitSubtitleOverlay 
           text={liveText || (mode === 'speaking' ? transcript : '')} 
@@ -207,16 +347,77 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
         />
       )}
 
-      {/* Controls */}
-      <div className={styles.controls}>
-        {/* Speak Button */}
-        <button
-          onClick={mode === 'speaking' ? stopSpeaking : startSpeaking}
-          disabled={speakDisabled}
-          className={`${styles.button} ${mode === 'speaking' ? styles.speakButtonActive : styles.speakButton} ${speakDisabled ? styles.buttonDisabled : ''}`}
-        >
-          {mode === 'speaking' ? '⏹️ Stop' : '🎤 Speak'}
-        </button>
+      {/* Controls Container */}
+      <div className="flex flex-col gap-2 p-3 w-full">
+          
+          {/* Speak Now Button */}
+          <button
+            onClick={mode === 'speaking' ? stopSpeaking : startSpeaking}
+            disabled={speakDisabled}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold transition-all ${
+                mode === 'speaking' 
+                ? 'bg-red-500/90 text-white animate-pulse shadow-lg shadow-red-500/20' 
+                : speakDisabled 
+                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    : 'bg-white/5 hover:bg-white/10 text-slate-200 border border-white/5'
+            }`}
+          >
+            {mode === 'speaking' ? <div className="w-2 h-2 bg-white rounded-full animate-ping mr-2"/> : null}
+            {mode === 'speaking' ? 'Stop Speaking' : 'Speak Now'}
+          </button>
+
+          {/* Listen Translation Group */}
+          <div className="flex items-stretch w-full rounded-xl border border-white/5 overflow-hidden">
+                <button
+                    onClick={() => setIsListening(!isListening)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-3 transition-colors ${
+                        isListening 
+                        ? 'bg-emerald-500/10 text-emerald-400' 
+                        : 'bg-transparent hover:bg-white/5 text-slate-300'
+                    }`}
+                >
+                    <span className="font-bold text-sm">Listen Translation</span>
+                    {isListening && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                </button>
+                <div className="w-[1px] bg-white/5" />
+                <button
+                    onClick={() => setIsLangOpen(!isLangOpen)}
+                    className="px-3 bg-transparent hover:bg-white/5 text-slate-300 flex items-center justify-center"
+                >
+                    <span className="text-lg mr-1">{selectedLanguage.flag}</span>
+                    <svg width="10" height="6" viewBox="0 0 10 6" fill="currentColor" className={`opacity-60 transition-transform ${isLangOpen ? 'rotate-180' : ''}`}>
+                        <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    </svg>
+                </button>
+          </div>
+
+          {/* Language Dropdown */}
+          {isLangOpen && (
+             <div ref={langMenuRef} className="absolute z-50 left-2 right-2 mt-2 bg-[#1a1c1f] border border-white/10 rounded-xl shadow-2xl max-h-[300px] overflow-y-auto">
+                 {LANGUAGES.map((lang) => (
+                     <button
+                        key={lang.code}
+                        onClick={() => {
+                            setSelectedLanguage(lang);
+                            setIsLangOpen(false);
+                            // If speaking, restart to update language?
+                            if (mode === 'speaking' && recognitionRef.current) {
+                                stopWebSpeech();
+                                setTimeout(startWebSpeech, 100);
+                            }
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 border-b border-white/5 last:border-0 ${
+                            selectedLanguage.code === lang.code ? 'text-emerald-400 bg-emerald-500/5' : 'text-slate-300'
+                        }`}
+                     >
+                        <span className="text-xl">{lang.flag}</span>
+                        <span className="text-sm font-medium">{lang.name}</span>
+                        {selectedLanguage.code === lang.code && <div className="ml-auto w-1.5 h-1.5 bg-emerald-400 rounded-full" />}
+                     </button>
+                 ))}
+             </div>
+          )}
+
       </div>
 
       {/* Activity Section */}
@@ -225,7 +426,7 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
         <div className={styles.activityBox}>
           {transcript && (
             <div className={styles.transcriptOriginal}>
-              <span className={styles.transcriptLabel}>You:</span> {transcript}
+              <span className={styles.transcriptLabel}>{mode === 'speaking' ? 'You' : 'Speaker'}:</span> {transcript}
             </div>
           )}
           {!transcript && (
@@ -236,6 +437,5 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
     </div>
   );
 }
-
 // Export the icon for use in control bar
 export { OrbitIcon };
