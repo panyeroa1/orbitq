@@ -47,12 +47,16 @@ export const viewport: Viewport = {
   themeColor: '#070707',
 };
 
+import { AuthProvider } from '@/components/AuthProvider';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body data-lk-theme="default">
-        <ClientOnlyToaster />
-        {children}
+        <AuthProvider>
+          <ClientOnlyToaster />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

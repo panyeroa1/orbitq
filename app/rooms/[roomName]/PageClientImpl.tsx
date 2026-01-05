@@ -5,6 +5,7 @@ import { decodePassphrase } from '@/lib/client-utils';
 import { DebugMode } from '@/lib/Debug';
 import { KeyboardShortcuts } from '@/lib/KeyboardShortcuts';
 import { supabase } from '@/lib/orbit/services/supabaseClient';
+import { useAuth } from '@/components/AuthProvider';
 import { RecordingIndicator } from '@/lib/RecordingIndicator';
 import { ConnectionDetails } from '@/lib/types';
 import { EburonControlBar } from '@/lib/EburonControlBar';
@@ -434,6 +435,7 @@ function VideoConferenceComponent(props: {
   const [waitingRoomEnabled, setWaitingRoomEnabled] = React.useState(false);
   const [waitingList, setWaitingList] = React.useState<{ identity: string; name: string }[]>([]);
   const [admittedIds, setAdmittedIds] = React.useState<Set<string>>(new Set());
+  const { user } = useAuth();
   const [isAppMuted, setIsAppMuted] = React.useState(false);
 
   const [isTranscriptionEnabled, setIsTranscriptionEnabled] = React.useState(false);
@@ -775,7 +777,7 @@ function VideoConferenceComponent(props: {
         
         await supabase.from('transcript_segments').upsert({
             meeting_id: roomName,
-            speaker_id: room.localParticipant.identity,
+            speaker_id: user?.id || room.localParticipant.identity,
             source_text: segment.text,
             source_lang: segment.language || 'auto',
             last_segment_id: segmentId,
