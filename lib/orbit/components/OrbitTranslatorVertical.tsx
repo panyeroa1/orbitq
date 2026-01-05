@@ -53,7 +53,14 @@ interface OrbitTranslatorVerticalProps {
 export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: OrbitTranslatorVerticalProps) {
   // --- Core state (kept) ---
   const [mode, setMode] = useState<'idle' | 'speaking'>('idle');
-  const [transcript, setTranscript] = useState('');
+  const [messages, setMessages] = useState<Array<{
+    id: string;
+    text: string;
+    translation?: string;
+    speakerId: string;
+    isMe: boolean;
+    timestamp: Date;
+  }>>([]);
   const [liveText, setLiveText] = useState('');
   const [isLockedByOther, setIsLockedByOther] = useState(false);
   // We use roomCode as our unique identifier for now, assuming it is the meeting ID
@@ -154,9 +161,14 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
       const tData = await tRes.json();
       const translated = tData.translation || item.text;
 
-      if (isListeningRef.current) {
-        setTranslatedPreview(translated);
-      }
+      setMessages(prev => [...prev, {
+        id: item.id || Math.random().toString(),
+        text: item.text,
+        translation: translated,
+        speakerId: item.speakerId || 'remote',
+        isMe: false,
+        timestamp: new Date()
+      }]);
 
       // 2) TTS
       if (isListeningRef.current) {
@@ -193,12 +205,24 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
           filter: `meeting_id=eq.${roomUuid}`,
         },
         (payload: any) => {
-          if (payload.new.speaker_id !== userId) {
-            setTranscript(payload.new.source_text || '');
-
+          const isMe = payload.new.speaker_id === userId;
+          
+          if (!isMe) {
             if (isListeningRef.current) {
-              processingQueueRef.current.push({ text: payload.new.source_text || '' });
+              processingQueueRef.current.push({ 
+                text: payload.new.source_text || '',
+                id: payload.new.id,
+                speakerId: payload.new.speaker_id
+              });
               processNextInQueue();
+            } else {
+              setMessages(prev => [...prev, {
+                id: payload.new.id || Math.random().toString(),
+                text: payload.new.source_text || '',
+                speakerId: payload.new.speaker_id,
+                isMe: false,
+                timestamp: new Date()
+              }]);
             }
           }
         }
@@ -246,8 +270,14 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
       onLiveTextChange?.(display);
 
       if (final.trim() && roomUuid) {
-        setTranscript(final);
-        setTranslatedPreview(''); // UI: clear prior translation when you speak new content
+        const msgId = Math.random().toString();
+        setMessages(prev => [...prev, {
+          id: msgId,
+          text: final,
+          speakerId: userId,
+          isMe: true,
+          timestamp: new Date()
+        }]);
         setLiveText('');
 
         const sentences = final
@@ -411,162 +441,189 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
         </div>
       </div>
 
-      {/* Global Subtitle Overlay */}
-      {typeof document !== 'undefined' && (
-        <OrbitSubtitleOverlay
-          text={liveText || (mode === 'speaking' ? transcript : '')}
-          isVisible={mode === 'speaking' && !!(liveText || transcript)}
-        />
-      )}
 
       {/* Main */}
-      <div className="flex-1 flex flex-col p-4 gap-4 overflow-y-auto">
-        {/* Controls */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_-30px_rgba(0,0,0,0.8)] backdrop-blur-xl overflow-hidden">
-          {/* Speak */}
-          <div className="p-3">
+      <div className="flex-1 flex flex-col min-h-0">
+        {/* Transcript */}
+        <div className="flex-1 flex flex-col p-4 min-h-0">
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Activity Feed</h3>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setMessages([])}
+                className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors uppercase tracking-tight"
+              >
+                Clear
+              </button>
+              <span className="text-[10px] text-slate-500">{formatTime()}</span>
+            </div>
+          </div>
+
+          <div className={`flex-1 rounded-2xl border border-white/10 bg-black/20 backdrop-blur-xl p-4 overflow-y-auto shadow-inner space-y-6 ${styles.scrollbar}`}>
+            {messages.length > 0 || liveText ? (
+              <>
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`flex items-start gap-3 ${msg.isMe ? 'flex-row-reverse' : ''}`}>
+                    <div
+                      className={[
+                        'w-8 h-8 rounded-full grid place-items-center text-[10px] font-bold text-white shrink-0',
+                        msg.isMe
+                          ? 'bg-gradient-to-br from-indigo-500 to-cyan-500'
+                          : 'bg-gradient-to-br from-violet-500 to-indigo-600',
+                      ].join(' ')}
+                    >
+                      {msg.isMe ? 'ME' : 'SP'}
+                    </div>
+
+                    <div className={`flex-1 min-w-0 flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}>
+                      <div className="flex items-center gap-2 mb-1.5 px-1">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+                          {msg.isMe ? 'You' : 'Speaker'}
+                        </span>
+                        <span className="text-[9px] text-slate-600 font-medium">
+                          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+
+                      <div className={[
+                        'max-w-[90%] rounded-2xl px-4 py-3 text-[14px] leading-relaxed shadow-sm',
+                        msg.isMe 
+                          ? 'rounded-tr-sm bg-indigo-500/10 border border-indigo-500/20 text-indigo-50'
+                          : 'rounded-tl-sm bg-white/5 border border-white/10 text-slate-100'
+                      ].join(' ')}>
+                        {msg.text}
+                      </div>
+
+                      {msg.translation && (
+                        <div className={`mt-2 max-w-[85%] rounded-2xl px-4 py-2.5 bg-emerald-500/5 border border-emerald-500/20 ${msg.isMe ? 'rounded-tr-sm' : 'rounded-tl-sm'}`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400/80">
+                              Translated
+                            </span>
+                            <div className="h-[1px] flex-1 bg-emerald-500/10" />
+                          </div>
+                          <div className="text-[13px] leading-relaxed text-emerald-100/90 italic">
+                            {msg.translation}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                {liveText && (
+                  <div className="flex items-start gap-3 flex-row-reverse animate-pulse">
+                    <div className="w-8 h-8 rounded-full bg-rose-500/20 border border-rose-500/30 grid place-items-center text-[10px] font-bold text-rose-300 shrink-0">
+                      ME
+                    </div>
+                    <div className="flex-1 min-w-0 flex flex-col items-end">
+                      <div className="flex items-center gap-2 mb-1.5 px-1">
+                        <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wide">Speaking…</span>
+                      </div>
+                      <div className="max-w-[90%] rounded-2xl rounded-tr-sm bg-rose-500/10 border border-rose-500/20 px-4 py-3 text-[14px] text-rose-50 italic">
+                        {liveText}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="h-full grid place-items-center opacity-40">
+                <div className="text-center">
+                  <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-white/5 border border-white/10 grid place-items-center">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </div>
+                  <div className="text-[13px] font-semibold text-slate-300">Quiet in here</div>
+                  <div className="text-[11px] mt-1 text-slate-500">Activity will appear here as you speak.</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Controls Overlay-ish at bottom */}
+        <div className="p-4 pt-0">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] shadow-2xl backdrop-blur-2xl overflow-hidden p-3 space-y-3">
             <button
               onClick={mode === 'speaking' ? stopSpeaking : startSpeaking}
               disabled={speakDisabled}
               className={[
-                'w-full group relative overflow-hidden rounded-2xl p-4 transition-all duration-300',
+                'w-full group relative overflow-hidden rounded-xl p-4 transition-all duration-300',
                 'border border-white/10',
                 mode === 'speaking'
-                  ? 'bg-gradient-to-br from-rose-500/90 to-red-600/90 shadow-[0_18px_40px_-20px_rgba(244,63,94,0.55)]'
+                  ? 'bg-rose-500/90'
                   : speakDisabled
                   ? 'bg-white/5 opacity-50 cursor-not-allowed'
-                  : 'bg-white/5 hover:bg-white/10 active:bg-white/5',
+                  : 'bg-white/5 hover:bg-white/10',
               ].join(' ')}
             >
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className={styles.sheen} />
-              </div>
-
               <div className="relative z-10 flex items-center justify-center gap-3">
                 {mode === 'speaking' ? (
                   <>
-                    <div className="flex items-end gap-1 h-4">
+                    <div className="flex items-end gap-1 h-3.5">
                       <span className={styles.waveBar} />
                       <span className={styles.waveBar2} />
                       <span className={styles.waveBar3} />
-                      <span className={styles.waveBar2} />
-                      <span className={styles.waveBar} />
                     </div>
-                    <span className="font-semibold text-white text-[15px] tracking-wide">Stop Speaking</span>
+                    <span className="font-bold text-white text-[14px] uppercase tracking-wider">Stop</span>
                   </>
                 ) : (
                   <>
-                    <div
-                      className={[
-                        'p-2 rounded-full transition-transform',
-                        speakDisabled
-                          ? 'bg-white/10'
-                          : 'bg-gradient-to-br from-indigo-400 to-cyan-400 shadow-[0_10px_30px_-18px_rgba(99,102,241,0.8)] group-hover:scale-105',
-                      ].join(' ')}
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="text-white"
-                      >
+                    <div className={`p-1.5 rounded-full ${speakDisabled ? 'bg-white/10' : 'bg-indigo-500'}`}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
                         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                        <line x1="12" y1="19" x2="12" y2="23" />
-                        <line x1="8" y1="23" x2="16" y2="23" />
                       </svg>
                     </div>
-                    <div className="flex flex-col items-start leading-tight">
-                      <span className={`font-semibold text-[15px] ${speakDisabled ? 'text-slate-500' : 'text-slate-100'}`}>
-                        Speak Now
-                      </span>
-                      <span className="text-[11px] text-slate-400">
-                        {speakDisabled ? 'Waiting for lock / room' : 'Tap to start live transcription'}
-                      </span>
-                    </div>
+                    <span className={`font-bold text-[14px] uppercase tracking-wider ${speakDisabled ? 'text-slate-500' : 'text-slate-100'}`}>
+                      {speakDisabled ? 'Wait…' : 'Push to Talk'}
+                    </span>
                   </>
                 )}
               </div>
             </button>
-          </div>
 
-          {/* Settings row */}
-          <div className="px-3 pb-3">
-            <div className="grid grid-cols-[1fr,1fr] gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setIsListening((v) => !v)}
-                className={[
-                  'rounded-xl px-3 py-3 text-left border border-white/10 bg-white/5 hover:bg-white/10 transition-colors',
-                  isListening ? 'ring-1 ring-emerald-500/30' : '',
-                ].join(' ')}
+                className={`flex flex-col gap-1 rounded-xl p-3 border transition-all text-left ${
+                  isListening ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-white/5 border-white/10'
+                }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[13px] font-semibold text-slate-100">Auto-Translate</span>
-                  <span
-                    className={[
-                      'inline-flex items-center justify-center w-9 h-5 rounded-full border transition-colors',
-                      isListening ? 'bg-emerald-500/15 border-emerald-500/30' : 'bg-white/5 border-white/10',
-                    ].join(' ')}
-                  >
-                    <span
-                      className={[
-                        'w-4 h-4 rounded-full transition-transform',
-                        isListening ? 'bg-emerald-400 translate-x-[10px]' : 'bg-slate-400 translate-x-[-10px]',
-                      ].join(' ')}
-                    />
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isListening ? 'text-emerald-400' : 'text-slate-400'}`}>
+                    Live Voice
                   </span>
+                  <div className={`w-1.5 h-1.5 rounded-full ${isListening ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-600'}`} />
                 </div>
-                <div className="mt-1 text-[11px] text-slate-400">
-                  {isListening ? 'On: translate and read remote speech' : 'Off: show transcript only'}
-                </div>
+                <span className="text-[12px] font-medium text-slate-200">{isListening ? 'Enabled' : 'Disabled'}</span>
               </button>
 
-              {/* Language selector */}
               <div className="relative" ref={langMenuRef}>
                 <button
                   onClick={() => setIsLangOpen((v) => !v)}
-                  className="w-full rounded-xl px-3 py-3 text-left border border-white/10 bg-white/5 hover:bg-white/10 transition-colors"
+                  className="w-full flex flex-col gap-1 rounded-xl p-3 border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-left"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-semibold text-slate-100">Target Language</span>
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className={`text-slate-400 transition-transform duration-200 ${isLangOpen ? '-rotate-180' : ''}`}
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
-                  </div>
-
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-[18px] leading-none">{selectedLanguage.flag}</span>
-                    <span className="text-[12px] font-medium text-slate-200">{selectedLanguage.name}</span>
-                    <span className="ml-auto text-[11px] text-slate-400">{selectedLanguage.code.toUpperCase()}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Language</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-[14px] shrink-0">{selectedLanguage.flag}</span>
+                    <span className="text-[12px] font-medium text-slate-200 truncate">{selectedLanguage.name}</span>
                   </div>
                 </button>
 
                 {isLangOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-[320px] z-50 rounded-2xl border border-white/10 bg-[#0b0f16]/95 shadow-2xl overflow-hidden backdrop-blur-xl">
+                  <div className="absolute right-0 bottom-full mb-3 w-[260px] z-50 rounded-2xl border border-white/10 bg-[#0b0f16] shadow-2xl overflow-hidden backdrop-blur-3xl">
                     <div className="p-3 border-b border-white/10">
                       <input
                         value={langQuery}
                         onChange={(e) => setLangQuery(e.target.value)}
-                        placeholder="Search language…"
-                        className="w-full rounded-xl px-3 py-2 text-[13px] bg-white/5 border border-white/10 outline-none focus:ring-2 focus:ring-indigo-500/30 placeholder:text-slate-500"
+                        placeholder="Search…"
+                        className="w-full rounded-lg px-3 py-1.5 text-[12px] bg-white/5 border border-white/10 outline-none focus:border-indigo-500/50"
                       />
                     </div>
-                    <div className={`max-h-[280px] overflow-y-auto ${styles.scrollbar}`}>
+                    <div className={`max-h-[200px] overflow-y-auto ${styles.scrollbar}`}>
                       {filteredLanguages.map((lang) => (
                         <button
                           key={lang.code}
@@ -574,132 +631,26 @@ export function OrbitTranslatorVertical({ roomCode, userId, onLiveTextChange }: 
                             setSelectedLanguage(lang);
                             setIsLangOpen(false);
                             setLangQuery('');
-
-                            // Keep your behavior: restart recognition to apply new language
                             if (mode === 'speaking' && recognitionRef.current) {
                               stopWebSpeech();
                               setTimeout(startWebSpeech, 120);
                             }
                           }}
-                          className={[
-                            'w-full px-3 py-2.5 text-left hover:bg-white/5 transition-colors',
-                            'flex items-center gap-3',
-                            selectedLanguage.code === lang.code ? 'bg-indigo-500/10' : '',
-                          ].join(' ')}
+                          className={`w-full px-3 py-2 text-left hover:bg-white/5 flex items-center gap-3 ${
+                            selectedLanguage.code === lang.code ? 'bg-indigo-500/10' : ''
+                          }`}
                         >
-                          <span className="text-[18px]">{lang.flag}</span>
-                          <div className="flex flex-col min-w-0">
-                            <span
-                              className={[
-                                'text-[13px] font-medium truncate',
-                                selectedLanguage.code === lang.code ? 'text-indigo-300' : 'text-slate-200',
-                              ].join(' ')}
-                            >
-                              {lang.name}
-                            </span>
-                            <span className="text-[11px] text-slate-500">{lang.code.toUpperCase()}</span>
-                          </div>
-                          {selectedLanguage.code === lang.code && (
-                            <div className="ml-auto w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_16px_rgba(99,102,241,0.65)]" />
-                          )}
+                          <span className="text-[16px]">{lang.flag}</span>
+                          <span className={`text-[12px] ${selectedLanguage.code === lang.code ? 'text-indigo-300 font-bold' : 'text-slate-200'}`}>
+                            {lang.name}
+                          </span>
                         </button>
                       ))}
-                      {filteredLanguages.length === 0 && (
-                        <div className="px-3 py-6 text-center text-[12px] text-slate-500">No matches</div>
-                      )}
                     </div>
                   </div>
                 )}
               </div>
             </div>
-
-            {/* Mini info strip */}
-            <div className="mt-2 flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-slate-400">
-              <span>WebSpeech • Ollama • Gemini</span>
-              <span className="text-slate-500">v2 UI</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Transcript */}
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex items-center justify-between mb-2 px-1">
-            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Live Transcript</h3>
-            <span className="text-[10px] text-slate-500">{formatTime()}</span>
-          </div>
-
-          <div className="flex-1 rounded-2xl border border-white/10 bg-black/20 backdrop-blur-xl p-3 overflow-y-auto shadow-inner">
-            {transcript ? (
-              <div className="space-y-3">
-                {/* Source bubble */}
-                <div className="flex items-start gap-2">
-                  <div
-                    className={[
-                      'w-8 h-8 rounded-full grid place-items-center text-[11px] font-bold text-white',
-                      mode === 'speaking'
-                        ? 'bg-gradient-to-br from-indigo-500 to-cyan-500'
-                        : 'bg-gradient-to-br from-violet-500 to-indigo-600',
-                    ].join(' ')}
-                    title={mode === 'speaking' ? 'You' : 'Speaker'}
-                  >
-                    {mode === 'speaking' ? 'ME' : 'SP'}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[12px] font-semibold text-slate-200">
-                        {mode === 'speaking' ? 'You' : 'Speaker'}
-                      </span>
-                      {mode === 'speaking' && liveText && (
-                        <span className="text-[11px] text-rose-200 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full">
-                          Live…
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="rounded-2xl rounded-tl-sm border border-white/10 bg-white/5 px-3 py-2.5 text-[14px] leading-relaxed text-slate-100">
-                      {transcript}
-                    </div>
-
-                    {/* Translation bubble (UI) */}
-                    {isListening && translatedPreview && (
-                      <div className="mt-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
-                            Translated
-                          </span>
-                          <span className="text-[10px] text-emerald-200/70">
-                            → {selectedLanguage.code.toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="text-[13px] leading-relaxed text-emerald-100">{translatedPreview}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="h-full grid place-items-center">
-                <div className="text-center text-slate-500">
-                  <div className="mx-auto mb-3 w-12 h-12 rounded-2xl bg-white/5 border border-white/10 grid place-items-center">
-                    <svg
-                      width="22"
-                      height="22"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
-                  </div>
-                  <div className="text-[13px] font-semibold text-slate-300">No activity yet</div>
-                  <div className="text-[11px] mt-1 text-slate-500">Press Speak Now to start capturing speech.</div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
