@@ -271,6 +271,16 @@ export function OrbitApp() {
            // If it's not me, show it
            if (payload.new.speaker_id !== MY_USER_ID) {
              setLastFinalText(payload.new.source_text);
+             
+             // Trigger Translation if listening and valid language
+             if (mode === 'listening' && selectedLanguageRef.current.code !== 'auto') {
+                processingQueueRef.current.push({ 
+                    text: payload.new.source_text,
+                    id: payload.new.id
+                });
+                processNextInQueue();
+             }
+
              // Clear after 5s
              if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
              silenceTimerRef.current = setTimeout(() => {
@@ -426,6 +436,12 @@ export function OrbitApp() {
           onListenToggle={toggleListen}
           onLanguageChange={setSelectedLanguage}
           onRaiseHand={() => roomStateService.raiseHand(MY_USER_ID, MY_USER_NAME)}
+          
+          audioData={audioData}
+          translatedStreamText={translatedStreamText}
+          isTtsLoading={isTtsLoading}
+          emotion={emotion}
+
           isSignedIn={!!sessionUser}
           onAuthToggle={async (initialMeetingId?: string) => {
             if (sessionUser) {
