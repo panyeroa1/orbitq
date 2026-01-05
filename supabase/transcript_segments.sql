@@ -11,8 +11,7 @@ create table if not exists public.transcript_segments (
   translated_text text null,
   full_transcription text null default ''::text,
   last_segment_id text null,
-  constraint transcript_segments_pkey primary key (id),
-  constraint transcript_segments_meeting_id_key unique (meeting_id)
+  constraint transcript_segments_pkey primary key (id)
 ) TABLESPACE pg_default;
 
 create index IF not exists idx_transcript_segments_meeting on public.transcript_segments using btree (meeting_id) TABLESPACE pg_default;

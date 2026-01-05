@@ -765,29 +765,19 @@ function VideoConferenceComponent(props: {
     if (!roomName) return;
     
     try {
-        const { data: current } = await supabase
-            .from('transcript_segments')
-            .select('full_transcription')
-            .eq('meeting_id', roomName)
-            .single();
-            
-        const previousFull = current?.full_transcription || '';
-        const newFull = previousFull + (previousFull ? ' ' : '') + segment.text;
-        const segmentId = crypto.randomUUID();
-        
-        await supabase.from('transcript_segments').upsert({
+        await supabase.from('transcript_segments').insert({
             meeting_id: roomName,
             speaker_id: user?.id || room.localParticipant.identity,
             source_text: segment.text,
             source_lang: segment.language || 'auto',
-            last_segment_id: segmentId,
-            full_transcription: newFull,
-        }, { onConflict: 'meeting_id' });
+            last_segment_id: crypto.randomUUID(),
+            full_transcription: segment.text,
+        });
         
     } catch (err) {
         console.error('Failed to save transcript', err);
     }
-  }, [roomName, room.localParticipant.identity]);
+  }, [roomName, room.localParticipant.identity, user?.id]);
 
   return (
     <div
