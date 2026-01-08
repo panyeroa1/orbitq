@@ -28,15 +28,7 @@ import { TranscriptionSidebar, TranscriptionProvider } from '@/lib/Transcription
 import roomStyles from '@/styles/Eburon.module.css';
 import sidebarStyles from '@/styles/PreJoin.module.css';
 
-function CaptionIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
-      <line x1="8" y1="12" x2="16" y2="12"></line>
-      <line x1="8" y1="16" x2="16" y2="16"></line>
-    </svg>
-  );
-}
+
 import {
   LocalUserChoices,
   RoomContext,
@@ -1124,6 +1116,8 @@ function VideoConferenceComponent(props: {
             roomState={roomState}
             userId={user?.id}
             audioCaptureOptions={audioCaptureOptions}
+            onCaptionToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+            isCaptionOpen={isSidebarOpen}
           />
           
           <DebugMode />
@@ -1154,17 +1148,7 @@ function VideoConferenceComponent(props: {
           />
 
           {/* Floating Caption Button */}
-           <div style={{position: 'absolute', bottom: 100, left: 20, zIndex: 60}}>
-             <button
-                type="button"
-                className={`${sidebarStyles.captionToggleBtn} ${isSidebarOpen ? sidebarStyles.captionToggleActive : ''}`}
-                style={{width: 'auto', padding: '10px'}}
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                title="Toggle Transcription Sidebar"
-             >
-               <CaptionIcon />
-             </button>
-           </div>
+
         </LayoutContextProvider>
       </RoomContext.Provider>
     </div>

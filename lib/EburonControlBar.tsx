@@ -207,6 +207,8 @@ interface EburonControlBarProps {
   onAppMuteToggle?: (muted: boolean | ((prev: boolean) => boolean)) => void;
   roomState?: RoomState;
   userId?: string;
+  onCaptionToggle?: () => void;
+  isCaptionOpen?: boolean;
 }
 
 export function EburonControlBar({
@@ -231,6 +233,8 @@ export function EburonControlBar({
   onAppMuteToggle,
   roomState,
   userId,
+  onCaptionToggle,
+  isCaptionOpen,
 }: EburonControlBarProps) {
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
@@ -797,6 +801,16 @@ export function EburonControlBar({
           </button>
 
           {/* Grid View Toggle */}
+          {onCaptionToggle && (
+            <button
+              className={`${styles.controlButton} ${isCaptionOpen ? styles.controlButtonActive : ''}`}
+              onClick={onCaptionToggle}
+              title={isCaptionOpen ? "Hide Captions" : "Show Captions"}
+            >
+              <CaptionsIcon />
+            </button>
+          )}
+
           {onGridToggle && (
             <button
               className={`${styles.controlButton} ${isGridView ? styles.controlButtonActive : ''}`}
@@ -977,6 +991,19 @@ export function EburonControlBar({
               >
                 <div className={styles.mobileGridIcon}><SettingsIcon /></div>
                 <span className={styles.mobileGridLabel}>Settings</span>
+              </button>
+            )}
+
+            {onCaptionToggle && (
+              <button 
+                className={`${styles.mobileGridItem} ${isCaptionOpen ? styles.mobileGridItemActive : ''}`}
+                onClick={() => {
+                  onCaptionToggle();
+                  setIsMobileMenuOpen(false);
+                }}
+              >
+                <div className={styles.mobileGridIcon}><CaptionsIcon /></div>
+                <span className={styles.mobileGridLabel}>{isCaptionOpen ? 'Hide CC' : 'Captions'}</span>
               </button>
             )}
 
