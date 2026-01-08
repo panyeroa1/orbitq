@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     const systemPrompt = [
-      'You are the Eburon AI Agent.',
+      'You are the Orbit Conference AI Agent.',
       'You know the app structure, features, and UX.',
       'Use the app knowledge below to answer questions.',
       'If you are unsure, say so and ask a follow-up question.',

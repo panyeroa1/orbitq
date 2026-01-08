@@ -2,8 +2,8 @@ import Link from 'next/link';
 import styles from '@/styles/DeveloperDocs.module.css';
 
 export const metadata = {
-  title: 'Developer API Documentation | Eburon',
-  description: 'Developer API reference for Eburon rooms, recordings, and integrations.',
+  title: 'Developer API Documentation | Orbit Conference',
+  description: 'Developer API reference for Orbit Conference rooms, recordings, and integrations.',
 };
 
 export default function DeveloperDocsPage() {
@@ -17,9 +17,9 @@ export default function DeveloperDocsPage() {
             Back to lobby
           </Link>
         </div>
-        <h1>Eburon Developer Documentation</h1>
-        <p>
-          Endpoints, auth, and integration patterns for building on top of Eburon.
+        <h1>Orbit Conference Developer Documentation</h1>
+        <p className={styles.docsSubheader}>
+          Endpoints, auth, and integration patterns for building on top of Orbit Conference.
           Use these APIs to create rooms, manage participants, and automate
           workflows with your own services.
         </p>
@@ -182,7 +182,7 @@ EBURON_AI_MODEL=eburon-ai-1
 
 
       <footer className={styles.footer}>
-        <span>Eburon Developer API</span>
+        <span>Orbit Conference Developer API</span>
         <a href="https://eburon.ai" target="_blank" rel="noopener noreferrer">
           Powered by Eburon AI
         </a>

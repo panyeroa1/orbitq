@@ -1,22 +1,25 @@
 :root {
   /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: var(--font-plus-jakarta), 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
-  /* Palette - Eburon */
-  --color-bg-dark: #1D0E32;
-  --color-bg-gradient-dark: radial-gradient(circle at top, rgba(141, 22, 88, 0.15), transparent 45%),
-                            radial-gradient(circle at bottom, rgba(235, 192, 113, 0.12), transparent 50%),
-                            #1D0E32;
+  /* Palette - Success Class Theme (Orbit Conference) */
+  --gold: #D4AF37;
+  --bg: #070707;
+  --glass: rgba(255, 255, 255, 0.05);
+
+  /* Re-mapping Eburon vars to new theme */
+  --color-bg-dark: var(--bg);
+  --color-bg-gradient-dark: var(--bg);
   
-  --color-card-dark: rgba(255, 255, 255, 0.04);
+  --color-card-dark: var(--glass);
   --color-border-dark: rgba(255, 255, 255, 0.1);
-  --color-text-main: #FDF0E0;
-  --color-text-muted: rgba(253, 240, 224, 0.65);
+  --color-text-main: #ffffff;
+  --color-text-muted: rgba(255, 255, 255, 0.65);
 
   /* Palette - Brand Accents */
-  --color-primary: #8D1658;
-  --color-secondary: #EBC071;
-  --color-accent: #8D1658;
+  --color-primary: var(--gold);
+  --color-secondary: var(--gold);
+  --color-accent: var(--gold);
 }
 
 * {

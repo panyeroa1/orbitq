@@ -12,13 +12,13 @@
   width: calc(100% - 8px);
   height: calc(var(--sc-controlbar-height, 80px) + env(safe-area-inset-bottom, 0px));
   padding: 0 2rem env(safe-area-inset-bottom, 0px);
-  background: rgba(29, 14, 50, 0.1);
+  background: rgba(7, 7, 7, 0.75);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 28px;
   position: fixed;
-  bottom: 4px;
+  bottom: 12px;
   left: 4px;
   z-index: 100;
   box-shadow: 0 -10px 48px rgba(0, 0, 0, 0.6);
@@ -50,13 +50,13 @@
 /* Room layout + sidebar sizing */
 .roomLayout {
   --sidebar-width: 360px;
-  --sc-surface: rgba(29, 14, 50, 0.94);
-  --sc-surface-strong: rgba(20, 10, 35, 0.96);
-  --sc-card: rgba(255, 255, 255, 0.04);
+  --sc-surface: rgba(7, 7, 7, 0.94);
+  --sc-surface-strong: rgba(0, 0, 0, 0.96);
+  --sc-card: var(--glass);
   --sc-card-strong: rgba(255, 255, 255, 0.08);
   --sc-border: rgba(255, 255, 255, 0.1);
-  --sc-border-strong: rgba(255, 255, 255, 0.18);
-  --sc-muted: rgba(253, 240, 224, 0.6);
+  --sc-border-strong: var(--gold);
+  --sc-muted: rgba(255, 255, 255, 0.6);
   --sc-controlbar-height: 80px;
   --sc-controlbar-bottom: 1.5rem;
   --sc-controlbar-offset: 10px;
@@ -351,15 +351,16 @@
   transform: translateX(14px);
 }
 
-/* Active (enabled) state - magenta for on */
+/* Active (enabled) state - gold for on */
 .controlButtonActive {
-  background: linear-gradient(135deg, #8D1658 0%, #6D1044 100%);
-  box-shadow: 0 4px 14px rgba(141, 22, 88, 0.4);
+  background: var(--gold);
+  color: #000;
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.4);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
 .controlButtonActive:hover {
-  background: linear-gradient(135deg, #6D1044 0%, #500C32 100%);
+  background: #f1c40f;
 }
 
 /* Muted/disabled state */
@@ -381,14 +382,15 @@
   background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
 }
 
-/* Invite button - magenta accent */
+/* Invite button - gold accent */
 .inviteButton {
-  background: linear-gradient(135deg, #8D1658 0%, #6D1044 100%);
-  box-shadow: 0 4px 14px rgba(141, 22, 88, 0.4);
+  background: var(--gold);
+  color: #000;
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.4);
 }
 
 .inviteButton:hover {
-  background: linear-gradient(135deg, #6D1044 0%, #500C32 100%);
+  background: #f1c40f;
 }
 
 /* Chat active state - blue */

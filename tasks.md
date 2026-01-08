@@ -1,3 +1,4 @@
+# Orbit Conference Task Log
 
 Task ID: T-0034
 Title: Disable Translation and TTS (Maintenance)
@@ -3049,10 +3050,116 @@ Test result:
 Known limitations or follow-up tasks:
 - None
 
+Task ID: T-0036
+Title: Replace Entry Page with Premium Bento Design
+Status: DONE
+Owner: Miles
+Related repo or service: joe
+Created: 2026-01-08 10:40
+Last updated: 2026-01-08 10:45
 
+START LOG (fill this before you start coding)
 
+Timestamp: 2026-01-08 10:40
+Current behavior or state:
+- Current entry page is a standard Next.js marketing page with generic branding.
 
+Plan and scope for this task:
+- Replace `app/page.tsx` with a new React component based on a premium bento grid design.
+- Integrate anonymous Supabase authentication.
+- Implement room creation and joining logic.
+- Add a settings icon linking to `/settings`.
 
+Files or modules expected to change:
+- app/page.tsx
+- app/layout.tsx
+- styles/Portal.module.css (NEW)
 
+Risks or things to watch out for:
+- Maintaining brand consistency while shifting to a premium look.
 
+WORK CHECKLIST
 
+- [x] Code changes implemented according to the defined scope
+- [x] No unrelated refactors or drive-by changes
+- [x] Configuration and environment variables verified
+- [x] Database migrations or scripts documented if they exist
+- [x] Logs and error handling reviewed
+
+END LOG (fill this after you finish coding and testing)
+
+Timestamp: 2026-01-08 10:45
+Summary of what actually changed:
+- Replaced the entry page with a premium bento grid design.
+- Integrated anonymous Supabase auth and updated global typography.
+
+Files actually modified:
+- app/page.tsx
+- app/layout.tsx
+- styles/Portal.module.css
+
+How it was tested:
+- Production build verified.
+
+Test result:
+- PASS
+
+Known limitations or follow-up tasks:
+- None
+
+Task ID: T-0037
+Title: Update Branding to Orbit Conference
+Status: DONE
+Owner: Miles
+Related repo or service: joe
+Created: 2026-01-08 10:44
+Last updated: 2026-01-08 10:45
+
+START LOG (fill this before you start coding)
+
+Timestamp: 2026-01-08 10:44
+Current behavior or state:
+- App uses "EBURON" branding.
+- User explicitly requested "Orbit Conference" as the brand name.
+
+Plan and scope for this task:
+- Update `app/page.tsx`, `app/layout.tsx`, `app/docs/page.tsx`, and `app/api/agent/route.ts` to use "Orbit Conference".
+
+Files or modules expected to change:
+- app/page.tsx
+- app/layout.tsx
+- app/docs/page.tsx
+- app/api/agent/route.ts
+
+Risks or things to watch out for:
+- Ensuring consistency across user-facing surfaces.
+
+WORK CHECKLIST
+
+- [x] Branding updated in Entry Page
+- [x] Metadata updated in RootLayout
+- [x] Documentation updated
+- [x] Agent prompt updated
+
+END LOG (fill this after you finish coding and testing)
+
+Timestamp: 2026-01-08 10:45
+Summary of what actually changed:
+- Changed the primary brand name from "Eburon" to "Orbit Conference" across all major user-facing components.
+- Updated metadata and assistant personality.
+
+Files actually modified:
+- app/page.tsx
+- app/layout.tsx
+- app/docs/page.tsx
+- app/api/agent/route.ts
+
+How it was tested:
+- Verified successful build.
+- Checked strings in code.
+
+Test result:
+- PASS
+
+Known limitations or follow-up tasks:
+- None
