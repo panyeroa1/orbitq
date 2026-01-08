@@ -2,9 +2,11 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useDeepgramTranscription } from './useDeepgramTranscription';
-import styles from '@/styles/Eburon.module.css'; // Reusing some base styles or inline
+import { useGeminiLive } from './useGeminiLive';
+import { useWebSpeech } from './useWebSpeech';
+import { useAssemblyAI } from './useAssemblyAI';
 
-// Styles specific to this overlay (could be moved to module)
+// Styles specific to this overlay
 const overlayStyles = {
   controlPill: {
     backgroundColor: '#2e7d32', // Forest Green
@@ -68,6 +70,15 @@ const overlayStyles = {
   }
 };
 
+type ModelCode = 'ORBT' | 'SONQ' | 'DELX' | 'PLTO';
+
+const MODEL_MAP: Record<ModelCode, { name: string; provider: string }> = {
+  'ORBT': { name: 'Deepgram', provider: 'deepgram' },
+  'SONQ': { name: 'AssemblyAI', provider: 'assemblyai' },
+  'DELX': { name: 'Gemini Live', provider: 'gemini' },
+  'PLTO': { name: 'WebSpeech', provider: 'webspeech' }
+};
+
 interface CinemaCaptionOverlayProps {
     onTranscriptSegment: (segment: { text: string; language: string; isFinal: boolean }) => void;
     defaultDeviceId?: string;
@@ -77,16 +88,11 @@ export function CinemaCaptionOverlay({ onTranscriptSegment, defaultDeviceId }: C
     const [position, setPosition] = useState({ x: 50, y: 50 });
     const [isDragging, setIsDragging] = useState(false);
     const dragOffset = useRef({ x: 0, y: 0 });
+    const [selectedModel, setSelectedModel] = useState<ModelCode>('ORBT');
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     
-    // Transcription Hook
-    const {
-        isListening,
-        transcript,
-        interimTranscript,
-        startListening,
-        stopListening,
-        error
-    } = useDeepgramTranscription({
+    // All transcription hooks
+    const deepgram = useDeepgramTranscription({
         model: 'nova-2',
         language: 'en',
         onTranscript: (res) => {
@@ -96,9 +102,34 @@ export function CinemaCaptionOverlay({ onTranscriptSegment, defaultDeviceId }: C
         }
     });
 
-    const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [selectedDeviceId, setSelectedDeviceId] = useState<string>(defaultDeviceId || '');
+    const gemini = useGeminiLive();
+    const webspeech = useWebSpeech();
+    const assembly = useAssemblyAI();
+
+    // Map to active hook based on selected model
+    let activeHook: any;
+    switch (selectedModel) {
+        case 'ORBT':
+            activeHook = deepgram;
+            break;
+        case 'SONQ':
+            activeHook = assembly;
+            break;
+        case 'DELX':
+            activeHook = {
+                isListening: gemini.isRecording,
+                transcript: gemini.transcription,
+                interimTranscript: '',
+                startListening: gemini.toggleRecording,
+                stopListening: gemini.toggleRecording
+            };
+            break;
+        case 'PLTO':
+            activeHook = webspeech;
+            break;
+    }
+
+    const { isListening, transcript, interimTranscript, startListening, stopListening } = activeHook;
 
     // Draggable Logic
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -139,19 +170,21 @@ export function CinemaCaptionOverlay({ onTranscriptSegment, defaultDeviceId }: C
         }
     }, [isDragging, handleMouseMove, handleMouseUp]);
 
-    // Device Enumeration
-    useEffect(() => {
-        navigator.mediaDevices.enumerateDevices().then(devs => {
-            setDevices(devs.filter(d => d.kind === 'audioinput'));
-        });
-    }, []);
-
     const toggleListening = () => {
         if (isListening) {
             stopListening();
         } else {
-            startListening(selectedDeviceId);
+            startListening(defaultDeviceId);
         }
+    };
+
+    const handleModelChange = (model: ModelCode) => {
+        // Stop current provider
+        if (isListening) {
+            stopListening();
+        }
+        setSelectedModel(model);
+        setIsMenuOpen(false);
     };
 
     return (
@@ -176,13 +209,13 @@ export function CinemaCaptionOverlay({ onTranscriptSegment, defaultDeviceId }: C
 
                 <div style={overlayStyles.divider} />
 
-                {/* Dropdown Trigger */}
+                {/* Model Selector Dropdown */}
                 <div 
                     className="dropdown-trigger"
                     style={overlayStyles.pillSection}
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
                 >
-                    <span>MIC</span>
+                    <span>{selectedModel}</span>
                     <span>▼</span>
                 </div>
 
@@ -195,28 +228,23 @@ export function CinemaCaptionOverlay({ onTranscriptSegment, defaultDeviceId }: C
                         borderRadius: '12px',
                         border: '1px solid #444',
                         padding: '5px',
-                        minWidth: '220px',
+                        minWidth: '180px',
                         color: 'white'
                     }}>
-                        {devices.map(d => (
+                        {(Object.keys(MODEL_MAP) as ModelCode[]).map(code => (
                             <div 
-                                key={d.deviceId}
+                                key={code}
                                 style={{
                                     padding: '10px',
                                     cursor: 'pointer',
                                     fontSize: '13px',
-                                    borderBottom: '1px solid #333'
+                                    borderBottom: code !== 'PLTO' ? '1px solid #333' : 'none',
+                                    backgroundColor: selectedModel === code ? 'rgba(76, 175, 80, 0.2)' : 'transparent',
+                                    fontWeight: selectedModel === code ? 700 : 400
                                 }}
-                                onClick={() => {
-                                    setSelectedDeviceId(d.deviceId);
-                                    setIsMenuOpen(false);
-                                    if (isListening) {
-                                        stopListening();
-                                        setTimeout(() => startListening(d.deviceId), 200);
-                                    }
-                                }}
+                                onClick={() => handleModelChange(code)}
                             >
-                                {d.label || `Mic ${d.deviceId.slice(0,5)}`}
+                                <span style={{fontWeight: 700}}>{code}</span> - {MODEL_MAP[code].name}
                             </div>
                         ))}
                     </div>

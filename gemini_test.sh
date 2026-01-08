@@ -2,7 +2,7 @@
 set -euo pipefail
 
 GEMINI_API_KEY="AIzaSyAzUOeNwzhCPXEn_MZswLjY6ekPPTIJJP4"
-MODEL_ID="gemini-flash-lite-latest"
+MODEL_ID="gemini-2.5-flash-native-audio-preview-12-2025"
 API_METHOD="generateContent"
 
 curl -sS -X POST \
