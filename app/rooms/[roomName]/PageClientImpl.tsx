@@ -876,14 +876,18 @@ function VideoConferenceComponent(props: {
     if (!roomName) return;
     
     try {
+        const speakerId = user?.id || crypto.randomUUID();
         const { error } = await supabase.from('transcriptions').insert({
             meeting_id: roomName,
-            speaker_id: user?.id || crypto.randomUUID(),
+            speaker_id: speakerId,
             user_id: user?.id || null,
             transcribe_text_segment: segment.text,
             full_transcription: segment.text,
         });
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase error details:', error);
+            throw error;
+        }
     } catch (err) {
         console.error('Failed to save transcript', err);
     }
