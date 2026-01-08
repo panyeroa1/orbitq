@@ -876,19 +876,18 @@ function VideoConferenceComponent(props: {
     if (!roomName) return;
     
     try {
-        const { error } = await supabase.from('transcript_segments').insert({
+        const { error } = await supabase.from('transcriptions').insert({
             meeting_id: roomName,
-            speaker_id: user?.id || room.localParticipant.identity,
-            source_text: segment.text,
-            source_lang: segment.language || 'auto',
-            last_segment_id: crypto.randomUUID(),
+            speaker_id: user?.id || crypto.randomUUID(),
+            user_id: user?.id || null,
+            transcribe_text_segment: segment.text,
             full_transcription: segment.text,
         });
         if (error) throw error;
     } catch (err) {
         console.error('Failed to save transcript', err);
     }
-  }, [roomName, room.localParticipant.identity, user?.id]);
+  }, [roomName, user?.id]);
 
   const handleTranscriptionToggle = React.useCallback(async () => {
     if (!roomName || !user?.id) return;
