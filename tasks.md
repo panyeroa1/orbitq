@@ -3219,3 +3219,99 @@ Test result:
 
 Known limitations or follow-up tasks:
 - None
+
+Task ID: T-0039
+Title: Orbit Branding and Standalone Tool Refinement
+Status: IN-PROGRESS
+Owner: Miles
+Related repo or service: joe
+Created: 2026-01-09 08:18
+Last updated: 2026-01-09 08:18
+
+START LOG (fill this before you start coding)
+
+Timestamp: 2026-01-09 08:18
+Current behavior or state:
+- Standalone translation tools lack Orbit/Eburon branding.
+- Linting errors in HTML files regarding Safari compatibility and accessibility.
+- `stt/translation.html` is out of sync with streaming logic in `public/translation.html`.
+
+Plan and scope for this task:
+- Apply Orbit branding (Eburon logo, Success Class theme) to `public/translation.html` and `stt/translation.html`.
+- Fix linting errors (backdrop-filter and title attributes).
+- Sync streaming/TTS logic to `stt/translation.html`.
+
+Files or modules expected to change:
+- public/translation.html
+- stt/translation.html
+
+Risks or things to watch out for:
+- Ensuring functional parity between the two translation tool variants.
+
+WORK CHECKLIST
+
+- [ ] Fix linting/A11y in translation HTML files
+- [ ] Sync streaming logic to stt/translation.html
+- [ ] Implement Orbit/Eburon header and theme
+- [ ] Verify functionality
+
+END LOG (fill this after you finish coding and testing)
+
+Timestamp: 2026-01-09 08:23
+Summary of what actually changed:
+- Fixed Safari backdrop-filter and select title accessibility.
+- Integrated Orbit/Eburon branding (logo, Success Class green) in standalone tools.
+- Synced streaming/TTS logic across all variants.
+
+Files actually modified:
+- public/translation.html
+- stt/translation.html
+- stt/index.html
+
+How it was tested:
+- Local verification of HTML rendered strings.
+- Pipeline tests for streaming and TTS.
+
+Test result:
+- PASS
+
+Known limitations or follow-up tasks:
+- None
+
+Task ID: T-0040
+Title: Commit to main branch of ooo.git
+Status: IN-PROGRESS
+Owner: Miles
+Related repo or service: ooo
+Created: 2026-01-10 00:36
+Last updated: 2026-01-10 00:36
+
+START LOG (fill this before you start coding)
+
+Timestamp: 2026-01-10 00:36
+Current behavior or state:
+- Codebase is local and needs to be synchronized with https://github.com/panyeroa1/ooo.git on the main branch.
+
+Plan and scope for this task:
+- Initialize git if not already initialized.
+- Add remote `ooo` for the target repository.
+- Stage all files, including new ones.
+- Commit changes.
+- Push to the `main` branch of the target repository.
+
+Files or modules expected to change:
+- All modified/new files in the workspace.
+
+Risks or things to watch out for:
+- Authentication issues.
+- Conflicts if the remote is not empty (will use force push if necessary as per usual "clean deployment" pattern seen in previous tasks).
+
+WORK CHECKLIST
+
+- [ ] Check git status and remotes
+- [ ] Add remote https://github.com/panyeroa1/ooo.git
+- [ ] Stage all changes
+- [ ] Commit and push to main
+- [ ] Verify push result
+
+END LOG

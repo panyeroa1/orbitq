@@ -33,11 +33,11 @@ export async function POST(request: Request) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model_id: "sonic-3",
+        model_id: "sonic-3-latest",
         transcript: text,
         voice: {
           mode: "id",
-          id: "9c7e6604-52c6-424a-9f9f-2c4ad89f3bb9"
+          id: "dda33d93-9f12-4a59-806e-a98279ebf050"
         },
         output_format: {
           container: "wav",
@@ -50,9 +50,9 @@ export async function POST(request: Request) {
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      console.error("Cartesia TTS Error", err);
-      return new NextResponse(err, { status: 500 });
+      const errText = await response.text();
+      console.error(`[Cartesia TTS Error] Status: ${response.status}`, errText);
+      return new NextResponse(errText, { status: response.status });
     }
 
     const buffer = await response.arrayBuffer();

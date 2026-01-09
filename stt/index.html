@@ -29,7 +29,7 @@
             position: absolute;
             -webkit-user-select: none;
             user-select: none;
-            border: 1px solid #4caf50;
+            border: 1px solid #22c55e;
             cursor: grab; /* Hand cursor to indicate draggable */
             z-index: 1000;
             
@@ -73,6 +73,8 @@
             width: 100%;
             height: 80px; /* Height of the black bar */
             background-color: rgba(0, 0, 0, 0.95);
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
             border-top: 1px solid #333;
             display: flex;
             align-items: center;
@@ -145,7 +147,7 @@
             color: #ccc;
             margin-bottom: 5px;
         }
-        .success { color: #4caf50; }
+        .success { color: #22c55e; }
         .recording { color: #ff5252; animation: pulse 1.5s infinite; }
 
         @keyframes pulse {
@@ -153,16 +155,30 @@
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
+        .header-logo {
+            position: absolute;
+            top: 20px;
+            left: 30px;
+            height: 35px;
+            z-index: 1001;
+        }
+        .header-logo img {
+            height: 100%;
+        }
     </style>
 </head>
 <body>
+
+    <div class="header-logo">
+        <img src="/images/eburon-logo.svg" alt="Orbit Logo">
+    </div>
 
     <!-- DRAGGABLE UI WRAPPER -->
     <div id="dragPill" class="control-pill">
         <!-- Mic Button -->
         <div class="pill-section" id="micButton">
             <i class="fa-solid fa-microphone"></i>
-            <span>SPEAK</span>
+            <span>ORBIT</span>
             <i class="fa-solid fa-chevron-down"></i>
         </div>
 
@@ -179,13 +195,13 @@
 
     <!-- STATUS INFO (Top Right) -->
     <div id="status-overlay">
-        <div id="mic-status" class="status-badge">Mic: Ready</div>
-        <div id="db-status" class="status-badge">DB: Idle</div>
+        <div id="mic-status" class="status-badge">Orbit: Active</div>
+        <div id="db-status" class="status-badge">System: Online</div>
     </div>
 
     <!-- CAPTION BAR (Bottom) -->
     <div id="caption-bar">
-        <div id="real-transcript">Transcriptions will appear here...</div>
+        <div id="real-transcript">Orbit is ready for your input...</div>
     </div>
 
     <!-- LOGIC -->
@@ -303,21 +319,19 @@
         async function startDeepgram(deviceId) {
             // Cleanup previous session
             if (currentConnection) currentConnection.requestClose();
-            if (mediaRecorder) mediaRecorder.stop();
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
             if (activeStream) activeStream.getTracks().forEach(t => t.stop());
 
             micStatus.innerText = 'Connecting...';
             transcriptOutput.innerText = '';
-            lineBuffer = "";
 
             try {
                 activeStream = await navigator.mediaDevices.getUserMedia({ 
                     audio: { deviceId: { exact: deviceId } } 
                 });
 
-                const deepgram = createDeepgramClient(DEEPGRAM_API_KEY);
-                
-                currentConnection = deepgram.listen.live({
+                const client = createDeepgramClient(DEEPGRAM_API_KEY);
+                currentConnection = client.listen.live({
                     model: 'nova-2',
                     language: 'en',
                     smart_format: true,
@@ -327,8 +341,9 @@
                 });
 
                 currentConnection.on(LiveTranscriptionEvents.Open, () => {
-                    micStatus.innerText = '🔴 Recording';
-                    micStatus.classList.add('recording');
+                    micStatus.innerText = 'Orbit: Active';
+                    micStatus.className = 'status-badge recording';
+                    micButton.classList.add('active');
                     
                     mediaRecorder = new MediaRecorder(activeStream);
                     mediaRecorder.addEventListener('dataavailable', event => {
@@ -345,32 +360,22 @@
                         const text = alt.transcript;
 
                         if (data.is_final) {
-                            // 1. Add to buffer
-                            lineBuffer += (lineBuffer ? " " : "") + text;
-                            transcriptOutput.innerText = lineBuffer;
-
-                            // 2. Clear buffer if too long (Cinema ticker effect)
-                            if (lineBuffer.length > 100) {
-                                setTimeout(() => { lineBuffer = ""; }, 1500);
-                            }
-
-                            // 3. Save to Supabase
+                            transcriptOutput.innerText = text;
                             saveToSupabase(text);
                         } else {
-                            // Show interim (grey text)
-                            transcriptOutput.innerHTML = `${lineBuffer} <span class="interim">${text}</span>`;
+                            transcriptOutput.innerHTML = `<span class="interim">${text}</span>`;
                         }
                     }
                 });
 
-                currentConnection.on(LiveTranscriptionEvents.Close, () => {
-                    micStatus.innerText = 'Mic: Disconnected';
-                    micStatus.classList.remove('recording');
+                currentConnection.on(LiveTranscriptionEvents.Error, (err) => {
+                    console.error("Transcription Error", err);
+                    micStatus.innerText = 'Orbit: Error';
                 });
 
             } catch (error) {
                 console.error(error);
-                micStatus.innerText = 'Error: Check Console';
+                micStatus.innerText = 'Orbit: Error';
             }
         }
 
