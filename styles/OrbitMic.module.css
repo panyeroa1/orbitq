@@ -13,7 +13,7 @@
   white-space: nowrap;
   overflow: hidden;
   font-size: 16px;
-  font-weight: 100; /* Roboto Thin equivalent */
+  font-weight: 400; /* Normal */
   color: #ffffff;
   background: none;
   padding: 8px 0;
@@ -22,7 +22,7 @@
     0 2px 8px rgba(0, 0, 0, 0.6);
   opacity: 0;
   transition: opacity 0.2s ease-out;
-  max-width: 650px;
+  max-width: 100%; /* Fill width */
   pointer-events: none;
   z-index: 10001;
 }

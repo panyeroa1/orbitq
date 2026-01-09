@@ -3538,3 +3538,55 @@ WORK CHECKLIST
 - [ ] Push fix
 
 END LOG
+
+Timestamp: 2026-01-10 08:45
+Summary of what actually changed:
+- Ran pnpm install to generate correct pnpm-lock.yaml with firebase.
+- Deleted package-lock.json.
+- Pushed updates to ooo and orbitq.
+
+Files actually modified:
+- pnpm-lock.yaml
+- package-lock.json (deleted)
+- tasks.md
+
+How it was tested:
+- pnpm install success.
+
+Test result:
+- PASS
+
+Status: DONE
+
+Task ID: T-0047
+Title: Refine Orbit Mic Typography
+Status: IN-PROGRESS
+Owner: Miles
+Related repo or service: ooo, orbitq
+Created: 2026-01-10 08:50
+Last updated: 2026-01-10 08:50
+
+START LOG (fill this before you start coding)
+
+Timestamp: 2026-01-10 08:50
+Current behavior or state:
+- Text is max-width: 650px, font-weight: 100 (Thin).
+
+Plan and scope for this task:
+- Change max-width to 100% (fill width).
+- Change font-weight to 400 (Normal).
+- Ensure font-size is 16px.
+- Push to remotes.
+
+Files or modules expected to change:
+- styles/OrbitMic.module.css
+
+Risks or things to watch out for:
+- None.
+
+WORK CHECKLIST
+
+- [ ] Update CSS
+- [ ] Push to all remotes
+
+END LOG
