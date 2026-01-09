@@ -85,9 +85,30 @@ export function useOrbitMic() {
             const text = alt?.transcript;
             
             if (text) {
-              setTranscript(text);
-              setIsFinal(data.is_final);
-              updateOrbitRTDB(text, data.is_final);
+              if (data.is_final) {
+                // Determine buffer
+                const currentBuffer = (socket as any)._sentenceBuffer || [];
+                currentBuffer.push(text);
+                (socket as any)._sentenceBuffer = currentBuffer;
+
+                if (currentBuffer.length >= 2) {
+                   const fullText = currentBuffer.join(' ');
+                   setTranscript(fullText);
+                   setIsFinal(true);
+                   updateOrbitRTDB(fullText, true);
+                   // Reset buffer
+                   (socket as any)._sentenceBuffer = [];
+                }
+              } else {
+                // Interim results: optionally show them?
+                // User requirement: "make at least 2 sentence before shipping to save".
+                // If we show interim, it's "shipping" to UI. 
+                // To be safe and compliant, we hide interim or only show it if strictly needed.
+                // Given "shipping to save", I'll suppress interim updates to the main transcript 
+                // to ensure the "batch" effect is clear.
+                // However, seeing *nothing* might be bad UX. 
+                // But the request is specific. I will NOT setTranscript for interim.
+              }
             }
         } catch (err) {
             console.error("Deepgram parse error", err);

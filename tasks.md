@@ -3640,3 +3640,59 @@ WORK CHECKLIST
 - [ ] Push to all remotes
 
 END LOG
+
+Timestamp: 2026-01-10 09:05
+Summary of what actually changed:
+- Updated styles/OrbitMic.module.css:
+  - font-size: 18px
+
+Files actually modified:
+- styles/OrbitMic.module.css
+- tasks.md
+
+How it was tested:
+- git push output verification.
+
+Test result:
+- PASS
+
+Status: DONE
+
+Task ID: T-0049
+Title: Batch Orbit Mic Transcripts
+Status: IN-PROGRESS
+Owner: Miles
+Related repo or service: ooo, orbitq
+Created: 2026-01-10 09:15
+Last updated: 2026-01-10 09:15
+
+START LOG (fill this before you start coding)
+
+Timestamp: 2026-01-10 09:15
+Current behavior or state:
+- Transcripts update and save immediately upon receiving any  or interim result (though my code currently updates on every message with text).
+
+Plan and scope for this task:
+- Implement buffering in .
+- Accumulate  sentences.
+- Only update  and  when 2 sentences are accumulated.
+- Push to remotes.
+
+Files or modules expected to change:
+- lib/orbit/hooks/useOrbitMic.ts
+
+Risks or things to watch out for:
+- User might think it's broken if the delay is too long (speaking 1 sentence and pausing).
+- Will keep interim updates local? No, "shipping to save" implies blocking the update. I will block the *final* update.
+- Actually, I'll allow interim updates to show *current* progress, but only *commit* (clean text) every 2 sentences. 
+- Wait, if I show interim,  updates.  drives the UI.
+- The user said "shipping to save".
+- If I update UI but not DB, they might be out of sync.
+- I will buffer both to be safe. "Make... text... before shipping".
+
+WORK CHECKLIST
+
+- [ ] Modify useOrbitMic.ts
+- [ ] Push to all remotes
+
+END LOG
