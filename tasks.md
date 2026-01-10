@@ -3833,3 +3833,35 @@ Test result:
 
 Status: DONE
 
+
+Task ID: T-0052
+Title: Remove Redundant Control Bar Elements
+Status: IN-PROGRESS
+Owner: Miles
+Related repo or service: ooo, orbitq
+Created: 2026-01-10 10:25
+Last updated: 2026-01-10 10:25
+
+START LOG (fill this before you start coding)
+
+Timestamp: 2026-01-10 10:25
+Current behavior or state:
+- EburonControlBar displays redundant Language, Model, and "Listen" (Speaker/Mute) controls.
+- These features are now handled by the Translator Sidebar.
+
+Plan and scope for this task:
+- Remove lines ~766-895 in EburonControlBar.tsx.
+- Remove redundant state variables (selectedModel, etc.) if unused.
+
+Files or modules expected to change:
+- lib/EburonControlBar.tsx
+
+Risks or things to watch out for:
+- Ensure I don't remove the new "Listen" button (Translator toggle) which is just before the block to be removed.
+
+WORK CHECKLIST
+
+- [x] Remove UI blocks
+- [x] Cleanup state
+
+END LOG

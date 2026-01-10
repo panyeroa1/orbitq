@@ -82,20 +82,7 @@ const ToolsIcon = () => (
   </svg>
 );
 
-const SpeakerIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-    <path d="M15 9a4 4 0 0 1 0 6" />
-    <path d="M18 6a7 7 0 0 1 0 12" />
-  </svg>
-);
 
-const SpeakerOffIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-    <line x1="22" y1="2" x2="2" y2="22" />
-  </svg>
-);
 
 const ChevronDownIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="10" height="10">
@@ -260,24 +247,9 @@ export function EburonControlBar({
   const [audioDevices, setAudioDevices] = React.useState<MediaDeviceInfo[]>([]);
   const [selectedAudioDevice, setSelectedAudioDevice] = React.useState<string>('');
   const [isMicMenuOpen, setIsMicMenuOpen] = React.useState(false);
-  const [speakerDevices, setSpeakerDevices] = React.useState<MediaDeviceInfo[]>([]);
-  const [selectedSpeakerDevice, setSelectedSpeakerDevice] = React.useState<string>('');
-  const [isSpeakerMenuOpen, setIsSpeakerMenuOpen] = React.useState(false);
   
-  // Language Selector State
-  const [selectedLanguage, setSelectedLanguage] = React.useState<Language>(LANGUAGES.find(l => l.code === 'en-US') || LANGUAGES[0]);
-  const [isLangMenuOpen, setIsLangMenuOpen] = React.useState(false);
-  const langMenuRef = React.useRef<HTMLDivElement | null>(null);
-
-  const screenShareMenuRef = React.useRef<HTMLDivElement | null>(null);
   const micMenuRef = React.useRef<HTMLDivElement | null>(null);
-  const speakerMenuRef = React.useRef<HTMLDivElement | null>(null);
-  const modelMenuRef = React.useRef<HTMLDivElement | null>(null);
-
-  // STT Model Selector State
-  type ModelCode = 'ORBT' | 'SONQ' | 'DELX' | 'PLTO';
-  const [selectedModel, setSelectedModel] = React.useState<ModelCode>('ORBT');
-  const [isModelMenuOpen, setIsModelMenuOpen] = React.useState(false);
+  const screenShareMenuRef = React.useRef<HTMLDivElement | null>(null);
 
   // Orbit Mic State (Passed down or fallback)
   const { isRecording: isOrbitMicRecording, transcript: orbitTranscript, isFinal: isOrbitFinal, toggle: toggleOrbitMic, analyser: orbitAnalyser } = orbitMicState || { 
@@ -334,12 +306,7 @@ export function EburonControlBar({
         if (!selectedAudioDevice && audioInputs.length > 0) {
           setSelectedAudioDevice(audioInputs[0].deviceId);
         }
-        // Also get audio outputs (speakers)
-        const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
-        setSpeakerDevices(audioOutputs);
-        if (!selectedSpeakerDevice && audioOutputs.length > 0) {
-          setSelectedSpeakerDevice(audioOutputs[0].deviceId);
-        }
+
       } catch (error) {
         console.error('Failed to enumerate audio devices:', error);
       }
@@ -347,7 +314,7 @@ export function EburonControlBar({
     getDevices();
     navigator.mediaDevices.addEventListener('devicechange', getDevices);
     return () => navigator.mediaDevices.removeEventListener('devicechange', getDevices);
-  }, [selectedAudioDevice, selectedSpeakerDevice]);
+  }, [selectedAudioDevice]);
 
   // Audio Level Monitoring
   React.useEffect(() => {
@@ -407,7 +374,7 @@ export function EburonControlBar({
       stream.getTracks().forEach((t) => t.stop());
       const devices = await navigator.mediaDevices.enumerateDevices();
       setAudioDevices(devices.filter((d) => d.kind === 'audioinput'));
-      setSpeakerDevices(devices.filter((d) => d.kind === 'audiooutput'));
+
     } catch (e) {
       // Permission denied is fine; keep unlabeled devices.
       console.warn('Mic permission not granted for device labels.');
@@ -426,29 +393,7 @@ export function EburonControlBar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMicMenuOpen]);
 
-  // Close speaker menu on outside click
-  React.useEffect(() => {
-    if (!isSpeakerMenuOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (speakerMenuRef.current && !speakerMenuRef.current.contains(event.target as Node)) {
-        setIsSpeakerMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isSpeakerMenuOpen]);
 
-  // Close language menu on outside click
-  React.useEffect(() => {
-    if (!isLangMenuOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
-        setIsLangMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isLangMenuOpen]);
 
   const switchAudioDevice = async (deviceId: string) => {
     setSelectedAudioDevice(deviceId);
@@ -718,7 +663,7 @@ export function EburonControlBar({
                   e.stopPropagation();
                   if (!isMicMenuOpen) await ensureMicPermissionForLabels();
                   setIsMicMenuOpen((prev) => !prev);
-                  setIsSpeakerMenuOpen(false);
+
                 }}
                 title="Select microphone"
                 aria-expanded={isMicMenuOpen}
@@ -763,136 +708,7 @@ export function EburonControlBar({
 
 
 
-            <div className={styles.audioSplitDivider} />
 
-            {/* Language Selector (Center) */}
-            <div className={`${styles.audioSplitSection} ${styles.audioSplitCenter}`} ref={langMenuRef}>
-              <div 
-                className={`${styles.audioSplitMain} ${styles.langSelectMain}`}
-                onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
-                title="Select Language"
-              >
-                <span className={styles.langFlag}>{selectedLanguage.flag}</span>
-                <ChevronDownIcon />
-              </div>
-
-              {isLangMenuOpen && (
-                 <div 
-                  className={`${styles.deviceMenu} ${styles.langMenu}`}
-                  role="listbox" 
-                  aria-label="Select Language"
-                 >
-                   {LANGUAGES.map((lang) => (
-                     <button
-                       key={lang.code}
-                       className={`${styles.deviceOption} ${styles.langOption} ${selectedLanguage.code === lang.code ? styles.deviceOptionActive : ''}`}
-                       onClick={() => {
-                         setSelectedLanguage(lang);
-                         setIsLangMenuOpen(false);
-                         onLanguageChange?.(lang.name);
-                       }}
-                       role="option"
-                       aria-selected={selectedLanguage.code === lang.code}
-                     >
-                       <span className={styles.langOptionFlag}>{lang.flag}</span>
-                       <span>{lang.name}</span>
-                     </button>
-                   ))}
-                 </div>
-              )}
-            </div>
-
-            <div className={styles.audioSplitDivider} />
-
-            {/* STT Model Selector */}
-            <div className={`${styles.audioSplitSection} ${styles.audioSplitModelSelector}`} ref={modelMenuRef}>
-              <div className={styles.audioSplitMain} style={{cursor: 'default', padding: '0 8px'}}>
-                <span className={styles.audioSplitLabel} style={{fontSize: '11px', fontWeight: 600}}>{selectedModel}</span>
-              </div>
-              <button
-                className={styles.audioSplitDropdown}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsModelMenuOpen((prev) => !prev);
-                  setIsMicMenuOpen(false);
-                  setIsLangMenuOpen(false);
-                }}
-                title="Select STT Model"
-                aria-expanded={isModelMenuOpen}
-                aria-haspopup="listbox"
-              >
-                <ChevronDownIcon />
-              </button>
-              {isModelMenuOpen && (
-                <div className={styles.deviceMenu} style={{minWidth: '100px'}} role="listbox" aria-label="Select STT Model">
-                  {(['ORBT', 'SONQ', 'DELX', 'PLTO'] as ModelCode[]).map((code) => (
-                    <button
-                      key={code}
-                      className={`${styles.deviceOption} ${selectedModel === code ? styles.deviceOptionActive : ''}`}
-                      onClick={() => {
-                        setSelectedModel(code);
-                        setIsModelMenuOpen(false);
-                      }}
-                      role="option"
-                      aria-selected={selectedModel === code}
-                      style={{fontSize: '13px', fontWeight: 600}}
-                    >
-                      {code}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className={styles.audioSplitDivider} />
-
-            {/* Listen (Speaker) Section */}
-            <div className={`${styles.audioSplitSection} ${styles.audioSplitRight}`} ref={speakerMenuRef}>
-              <div className={styles.audioSplitMain} onClick={() => onAppMuteToggle?.((prev) => !prev)} title={isAppMuted ? 'Unmute app audio' : 'Mute app audio'}>
-                <span className={styles.audioSplitLabel}>Listen</span>
-                <div className={`${styles.audioSplitIcon} ${!isAppMuted ? styles.iconActive : styles.iconMuted}`}>
-                  {isAppMuted ? <SpeakerOffIcon /> : <SpeakerIcon />}
-                </div>
-              </div>
-              <button
-                className={styles.audioSplitDropdown}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsSpeakerMenuOpen((prev) => !prev);
-                  setIsMicMenuOpen(false);
-                }}
-                title="Select speaker"
-                aria-expanded={isSpeakerMenuOpen}
-                aria-haspopup="listbox"
-              >
-                <ChevronDownIcon />
-              </button>
-              {isSpeakerMenuOpen && speakerDevices.length > 0 && (
-                <div className={styles.deviceMenu} role="listbox" aria-label="Select Speaker">
-                  {speakerDevices.map((device) => (
-                    <button
-                      key={device.deviceId}
-                      className={`${styles.deviceOption} ${selectedSpeakerDevice === device.deviceId ? styles.deviceOptionActive : ''}`}
-                      onClick={async () => {
-                        setSelectedSpeakerDevice(device.deviceId);
-                        setIsSpeakerMenuOpen(false);
-                        try {
-                          await room.switchActiveDevice('audiooutput', device.deviceId);
-                          toast.success(`Switched to ${device.label || 'new speaker'}`);
-                        } catch (error) {
-                          console.error('Failed to switch speaker:', error);
-                          toast.error('Failed to switch speaker');
-                        }
-                      }}
-                      role="option"
-                      aria-selected={selectedSpeakerDevice === device.deviceId}
-                    >
-                      {device.label || `Speaker ${speakerDevices.indexOf(device) + 1}`}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
@@ -1144,18 +960,7 @@ export function EburonControlBar({
               <span className={styles.mobileGridLabel}>Raise Hand</span>
             </button>
 
-            <button 
-              className={`${styles.mobileGridItem} ${isAppMuted ? '' : styles.mobileGridItemActive}`}
-              onClick={() => {
-                onAppMuteToggle?.((prev) => !prev);
-                setIsMobileMenuOpen(false);
-              }}
-            >
-              <div className={styles.mobileGridIcon}>
-                {isAppMuted ? <SpeakerOffIcon /> : <SpeakerIcon />}
-              </div>
-              <span className={styles.mobileGridLabel}>{isAppMuted ? 'Unmute' : 'Mute App'}</span>
-            </button>
+
 
             {onSettingsToggle && (
               <button 
