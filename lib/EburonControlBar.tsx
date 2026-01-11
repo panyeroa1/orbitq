@@ -181,6 +181,7 @@ interface EburonControlBarProps {
   onParticipantsToggle?: () => void;
   onAgentToggle?: () => void;
   onSettingsToggle?: () => void;
+  onSpeakToggle?: () => void;
 
 
   onTranscriptionToggle?: () => void;
@@ -189,6 +190,7 @@ interface EburonControlBarProps {
   isParticipantsOpen?: boolean;
   isAgentOpen?: boolean;
   isSettingsOpen?: boolean;
+  isSpeakOpen?: boolean;
 
 
   isTranscriptionOpen?: boolean;
@@ -211,6 +213,7 @@ export function EburonControlBar({
   onParticipantsToggle,
   onAgentToggle,
   onSettingsToggle,
+  onSpeakToggle,
 
 
   onTranscriptionToggle,
@@ -219,6 +222,7 @@ export function EburonControlBar({
   isParticipantsOpen,
   isAgentOpen,
   isSettingsOpen,
+  isSpeakOpen,
 
 
   isTranscriptionOpen,
@@ -619,10 +623,11 @@ export function EburonControlBar({
             {/* Speak (Mic) Section */}
             <div className={`${styles.audioSplitSection} ${styles.audioSplitLeft}`} ref={micMenuRef}>
               <div 
-                className={styles.audioSplitMain} 
+                className={`${styles.audioSplitMain} ${isSpeakOpen ? styles.iconActive : ''}`} 
                 onClick={() => {
                    toggleMicrophone();
                    toggleOrbitMic();
+                   onSpeakToggle?.();
                 }}
                 title={isMicEnabled ? 'Mute microphone' : 'Unmute microphone'}
                 style={{ position: 'relative' }} // ensure relative for visualizer

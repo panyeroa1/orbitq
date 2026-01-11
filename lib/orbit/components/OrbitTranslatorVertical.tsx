@@ -5,9 +5,7 @@ import { toast } from 'react-hot-toast';
 import styles from './OrbitTranslator.module.css';
 import sharedStyles from '@/styles/Eburon.module.css';
 import { LANGUAGES } from '@/lib/orbit/types';
-import { Volume2, ChevronDown, Trash2, Mic, Send } from 'lucide-react';
-import { ref, onValue } from 'firebase/database';
-import { rtdb } from '@/lib/orbit/services/firebase';
+import { Volume2, ChevronDown, Trash2, Mic, Send, MicOff } from 'lucide-react';
 
 // Orbit Planet Icon SVG
 const OrbitIcon = ({ size = 20 }: { size?: number }) => (
@@ -52,7 +50,16 @@ interface OrbitTranslatorVerticalProps {
   audioDevices?: MediaDeviceInfo[];
   selectedDeviceId?: string;
   onDeviceIdChange?: (deviceId: string) => void;
-  onListeningChange?: (isListening: boolean) => void; // New prop
+  onListeningChange?: (isListening: boolean) => void;
+  deepgram: {
+    isListening: boolean;
+    transcript: string;
+    isFinal: boolean;
+    start: (deviceId?: string) => Promise<void>;
+    stop: () => void;
+    error: string | null;
+  };
+  meetingId?: string | null;
 }
 
 export function OrbitTranslatorVertical({ 
@@ -62,9 +69,11 @@ export function OrbitTranslatorVertical({
   audioDevices = [],
   selectedDeviceId = '',
   onDeviceIdChange,
-  onListeningChange
+  onListeningChange,
+  deepgram,
+  meetingId
 }: OrbitTranslatorVerticalProps) {
-  // --- Core state (kept) ---
+  // --- Core state ---
   const [messages, setMessages] = useState<Array<{
     id: string;
     text: string;
@@ -74,20 +83,38 @@ export function OrbitTranslatorVertical({
     timestamp: Date;
   }>>([]);
   const [liveText, setLiveText] = useState('');
-  const roomUuid = roomCode;
+  const [transcripts, setTranscripts] = useState<Array<{
+    id: string;
+    text: string;
+    isFinal: boolean;
+    timestamp: Date;
+    source: 'local' | 'remote';
+  }>>([]);
 
-  // Track the last processed transcript to avoid duplicates
-  const lastTranscriptRef = useRef<string>('');
+  const {
+    isListening: isDeepgramListening,
+    transcript: deepgramTranscript,
+    isFinal: isDeepgramFinal,
+    start: startDeepgram,
+    stop: stopDeepgram,
+    error: deepgramError
+  } = deepgram;
+
+  // Track if we should play TTS
+  const [ttsEnabled, setTtsEnabled] = useState(true);
+  const ttsEnabledRef = useRef(ttsEnabled);
+  useEffect(() => {
+    ttsEnabledRef.current = ttsEnabled;
+  }, [ttsEnabled]);
+
+  const meetingIdToUse = meetingId || roomCode || 'Orbit-Session';
 
   // --- Translation & TTS ---
   const [selectedLanguage, setSelectedLanguage] = useState(LANGUAGES[0]);
-  const [isListening, setIsListening] = useState(false);
-  const [isLangOpen, setIsLangOpen] = useState(false);
-  const [langQuery, setLangQuery] = useState('');
-  const [manualText, setManualText] = useState(''); // New state for manual input
+  const [manualText, setManualText] = useState('');
 
-  // UI: show last translated text (visual only)
-  const [translatedPreview, setTranslatedPreview] = useState('');
+  // Track last processed transcript
+  const lastTranscriptRef = useRef<string>('');
 
   // Audio Playback
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -98,16 +125,11 @@ export function OrbitTranslatorVertical({
   const processingQueueRef = useRef<any[]>([]);
   const isProcessingRef = useRef(false);
 
-  // Refs to avoid stale closures
+  // Refs
   const selectedLanguageRef = useRef(selectedLanguage);
   useEffect(() => {
     selectedLanguageRef.current = selectedLanguage;
   }, [selectedLanguage]);
-
-  const isListeningRef = useRef(isListening);
-  useEffect(() => {
-    isListeningRef.current = isListening;
-  }, [isListening]);
 
   const ensureAudioContext = useCallback(() => {
     if (!audioCtxRef.current) {
@@ -163,24 +185,49 @@ export function OrbitTranslatorVertical({
     }
 
     try {
-      // 1) Translate
+      // 1) Translate via Ollama Cloud (streaming response)
       const targetLang = selectedLanguageRef.current.name;
       const targetCode = selectedLanguageRef.current.code;
       let translated = item.text;
       
       try {
-          if (targetCode !== 'auto') {
-              const tRes = await fetch('/api/orbit/translate', {
-                method: 'POST',
-                body: JSON.stringify({ text: item.text, targetLang }),
-              });
-              if (tRes.ok) {
-                 const tData = await tRes.json();
-                 translated = tData.translation || item.text;
+        if (targetCode !== 'auto') {
+          const tRes = await fetch('/api/orbit/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: item.text, targetLang }),
+          });
+          
+          if (tRes.ok && tRes.body) {
+            // Handle streaming response from Ollama
+            const reader = tRes.body.getReader();
+            const decoder = new TextDecoder();
+            let fullText = '';
+            
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              
+              const chunk = decoder.decode(value, { stream: true });
+              // Parse NDJSON stream from Ollama
+              const lines = chunk.split('\n').filter(l => l.trim());
+              for (const line of lines) {
+                try {
+                  const json = JSON.parse(line);
+                  if (json.message?.content) {
+                    fullText += json.message.content;
+                  }
+                } catch {}
               }
+            }
+            
+            if (fullText.trim()) {
+              translated = fullText.trim();
+            }
           }
+        }
       } catch (translateError) {
-          console.warn('Translation API failed, using original text', translateError);
+        console.warn('Translation API failed, using original text', translateError);
       }
 
       setMessages(prev => [...prev, {
@@ -188,24 +235,25 @@ export function OrbitTranslatorVertical({
         text: item.text,
         translation: translated !== item.text ? translated : undefined,
         speakerId: item.speakerId || 'remote',
-        isMe: false,
+        isMe: item.isMe ?? false,
         timestamp: new Date()
       }]);
 
-      // 2) TTS
-      if (isListeningRef.current) {
+      // 2) TTS via Cartesia
+      if (ttsEnabledRef.current) {
         try {
-            const ttsRes = await fetch('/api/orbit/tts', {
-              method: 'POST',
-              body: JSON.stringify({ text: translated }),
-            });
-            const arrayBuffer = await ttsRes.arrayBuffer();
-            if (arrayBuffer.byteLength > 0) {
-              audioQueueRef.current.push(arrayBuffer);
-              playNextAudio();
-            }
+          const ttsRes = await fetch('/api/orbit/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: translated }),
+          });
+          const arrayBuffer = await ttsRes.arrayBuffer();
+          if (arrayBuffer.byteLength > 0) {
+            audioQueueRef.current.push(arrayBuffer);
+            playNextAudio();
+          }
         } catch (ttsError) {
-            console.warn('TTS API failed', ttsError);
+          console.warn('TTS API failed', ttsError);
         }
       }
     } catch (e) {
@@ -216,58 +264,85 @@ export function OrbitTranslatorVertical({
     }
   }, [playNextAudio]);
 
-  // Subscribe to Firebase Live State
+  // Handle Deepgram transcript changes
   useEffect(() => {
-    const liveRef = ref(rtdb, 'orbit/live_state');
-    const unsubscribe = onValue(liveRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        // If final, send to processing queue (Translator/TTS)
-        if (data.is_final) {
-           // Simple dedup based on text content (optional but good)
-           if (data.transcript && data.transcript !== lastTranscriptRef.current) {
-               lastTranscriptRef.current = data.transcript;
-               setLiveText('');
-               
-               // Push to queue for translation
-               processingQueueRef.current.push({
-                   text: data.transcript,
-                   id: Math.random().toString(), // or timestamp
-                   speakerId: 'orbit-mic' // We assume it's the active speaker
-               });
-               processNextInQueue();
-           }
-        } else {
-           // Interim
-           setLiveText(data.transcript);
+    // Show interim transcript
+    if (deepgramTranscript && !isDeepgramFinal) {
+      setLiveText(deepgramTranscript);
+    }
+
+    // When final, push to translation queue
+    if (isDeepgramFinal && deepgramTranscript) {
+      if (deepgramTranscript !== lastTranscriptRef.current) {
+        lastTranscriptRef.current = deepgramTranscript;
+        setLiveText('');
+        
+        processingQueueRef.current.push({
+          text: deepgramTranscript,
+          id: Math.random().toString(),
+          speakerId: userId || 'deepgram-mic',
+          isMe: true
+        });
+        processNextInQueue();
+
+        // Shared Binding: Persist to DB for others
+        if (meetingIdToUse && userId && userId !== '') {
+          import('@/lib/orbit/services/orbitService').then(service => {
+            service.saveUtterance(meetingIdToUse, userId, deepgramTranscript, 'multi');
+          });
         }
       }
+    }
+  }, [deepgramTranscript, isDeepgramFinal, processNextInQueue, meetingIdToUse, userId]);
+
+  // Shared Binding: Subscribe to DB Transcripts from others
+  useEffect(() => {
+    if (!meetingIdToUse) return;
+
+    let channel: any = null;
+
+    import('@/lib/orbit/services/orbitService').then(service => {
+      channel = service.subscribeToTranscriptions(meetingIdToUse, (newTranscript) => {
+        // Only add if it's NOT from us
+        if (newTranscript.speaker_id !== userId) {
+          console.log(`[Shared Binding] Received remote transcript: "${newTranscript.transcribe_text_segment}"`);
+          processingQueueRef.current.push({
+            text: newTranscript.transcribe_text_segment,
+            id: newTranscript.id,
+            speakerId: newTranscript.speaker_id,
+            isMe: false
+          });
+          processNextInQueue();
+        }
+      });
     });
 
-    return () => unsubscribe();
-  }, [processNextInQueue]);
-
-
-
-  // Language dropdown click-outside
-  const langMenuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function handleClickOutside(event: any) {
-      if (langMenuRef.current && !langMenuRef.current.contains(event.target)) {
-        setIsLangOpen(false);
+    return () => {
+      if (channel) {
+        import('@/lib/orbit/services/supabaseClient').then(({ supabase }) => {
+          supabase.removeChannel(channel);
+        });
       }
+    };
+  }, [meetingIdToUse, userId, processNextInQueue]);
+
+  // Handle Deepgram errors
+  useEffect(() => {
+    if (deepgramError) {
+      toast.error(deepgramError);
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [deepgramError]);
 
-
-
-  const filteredLanguages = useMemo(() => {
-    const q = langQuery.trim().toLowerCase();
-    if (!q) return LANGUAGES;
-    return LANGUAGES.filter((l) => `${l.name} ${l.code}`.toLowerCase().includes(q));
-  }, [langQuery]);
+  // Toggle Deepgram listening
+  const handleListenToggle = useCallback(() => {
+    if (isDeepgramListening) {
+      stopDeepgram();
+      onListeningChange?.(false);
+    } else {
+      startDeepgram(selectedDeviceId || undefined);
+      onListeningChange?.(true);
+    }
+  }, [isDeepgramListening, startDeepgram, stopDeepgram, selectedDeviceId, onListeningChange]);
 
   const handleManualSubmit = useCallback(() => {
     if (!manualText.trim()) return;
@@ -295,8 +370,8 @@ export function OrbitTranslatorVertical({
           </div>
           <div className={sharedStyles.sidebarHeaderMeta}>
             <div className="flex items-center gap-1.5 mt-1">
-              <span className="text-[10px] uppercase tracking-wide font-medium text-emerald-400">
-                Ready
+              <span className={`text-[10px] uppercase tracking-wide font-medium ${isDeepgramListening ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {isDeepgramListening ? 'Listening...' : 'Ready'}
               </span>
             </div>
           </div>
@@ -312,24 +387,46 @@ export function OrbitTranslatorVertical({
         </div>
       </div>
 
+      {/* Meeting Context Binding Info */}
+      <div className="px-4 py-2 border-b border-white/5 bg-[#070707]/30 flex items-center justify-between shadow-inner">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold font-plus-jakarta">Meeting Context</span>
+          <code className="text-[10px] text-emerald-400 font-mono flex items-center gap-1.5 line-clamp-1">
+            <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+            {(roomCode || 'Lobby').toUpperCase()}
+          </code>
+        </div>
+        <div className="flex flex-col gap-0.5 items-end">
+          <span className="text-[9px] uppercase tracking-wider text-slate-500 font-bold font-plus-jakarta">Invite Code</span>
+          <span className="text-[10px] text-slate-400 font-mono">
+            {String(meetingIdToUse).slice(0, 8).toUpperCase()}
+          </span>
+        </div>
+      </div>
+
       <div className={sharedStyles.agentPanelBody}>
         {/* Main Controls */}
         <div className={sharedStyles.agentControls}>
+          {/* Listen (Deepgram STT) Button */}
           <button
-            onClick={() => {
-                 const newVal = !isListening;
-                 setIsListening(newVal);
-                 onListeningChange?.(newVal);
-            }}
+            onClick={handleListenToggle}
             className={`${sharedStyles.agentControlButton} ${
-              isListening ? sharedStyles.agentControlButtonActiveListen : ''
+              isDeepgramListening ? sharedStyles.agentControlButtonActiveListen : ''
             }`}
           >
-            {isListening ? (
-               // Stop icon or similar
-               <div className="w-4 h-4 rounded-sm bg-current" />
-            ) : <Volume2 size={18} />}
-            <span>{isListening ? 'Mute Audio' : 'Play Audio'}</span>
+            {isDeepgramListening ? <MicOff size={18} /> : <Mic size={18} />}
+            <span>{isDeepgramListening ? 'Stop Listening' : 'Start Listening'}</span>
+          </button>
+
+          {/* TTS Toggle */}
+          <button
+            onClick={() => setTtsEnabled(!ttsEnabled)}
+            className={`${sharedStyles.agentControlButton} ${
+              ttsEnabled ? sharedStyles.agentControlButtonActiveListen : ''
+            }`}
+          >
+            <Volume2 size={18} />
+            <span>{ttsEnabled ? 'TTS On' : 'TTS Off'}</span>
           </button>
         </div>
 

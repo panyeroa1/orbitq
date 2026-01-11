@@ -17,9 +17,12 @@ import { RoomState } from '@/lib/orbit/types';
 import { ChatPanel } from '@/lib/ChatPanel';
 import { ParticipantsPanel } from '@/lib/ParticipantsPanel';
 import { OrbitTranslatorVertical } from '@/lib/orbit/components/OrbitTranslatorVertical';
+import { SpeakTranscriptionPanel } from '@/lib/orbit/components/SpeakTranscriptionPanel';
 import { OrbitIntegrations } from '@/lib/orbit/components/OrbitIntegrations';
 import { LiveCaptions } from '@/lib/LiveCaptions';
 import { CustomPreJoin } from '@/lib/CustomPreJoin';
+import { useDeepgramLive } from '@/lib/orbit/hooks/useDeepgramLive';
+import { ensureRoomState } from '@/lib/orbit/services/orbitService';
 
 
 import { CinemaCaptionOverlay } from '@/lib/CinemaCaptionOverlay';
@@ -90,7 +93,7 @@ const ChevronLeftIcon = () => (
   </svg>
 );
 
-type SidebarPanel = 'participants' | 'agent' | 'chat' | 'settings' | 'translator';
+type SidebarPanel = 'participants' | 'agent' | 'chat' | 'settings' | 'translator' | 'speak';
 
 function VideoGrid({ allowedParticipantIds, isGridView }: { allowedParticipantIds: Set<string>, isGridView: boolean }) {
   const layoutContext = useLayoutContext();
@@ -517,7 +520,23 @@ function VideoConferenceComponent(props: {
   const [isTranscriptionEnabled, setIsTranscriptionEnabled] = React.useState(true);
   const [targetLanguage, setTargetLanguage] = React.useState('English'); // New State
   const [roomState, setRoomState] = React.useState<RoomState>({ activeSpeaker: null, raiseHandQueue: [], lockVersion: 0 });
+  const [roomId, setRoomId] = React.useState<string | null>(null);
   const [audioDevices, setAudioDevices] = React.useState<MediaDeviceInfo[]>([]);
+  const speakEmbedUrl = React.useMemo(() => {
+    const fallback = process.env.NEXT_PUBLIC_SPEAK_EMBED_URL || 'https://major-orbit.vercel.app/';
+    try {
+      const url = new URL(fallback, typeof window !== 'undefined' ? window.location.href : undefined);
+      if (typeof window !== 'undefined') {
+        url.searchParams.set('origin', window.location.origin);
+      }
+      return url.toString();
+    } catch {
+      return fallback;
+    }
+  }, []);
+
+  // Elevated Deepgram STT State
+  const deepgram = useDeepgramLive({ model: 'nova-3', language: 'multi' });
 
   // Transcription State (Client-Side)
   // This lives alongside the "LiveCaptions" component which handles room-wide broadcasted captions.
@@ -549,6 +568,12 @@ function VideoConferenceComponent(props: {
     const unsub = subscribeToRoom(roomName, (state) => {
       setRoomState(state);
     });
+    
+    // Resolve Room UUID for DB binding
+    ensureRoomState(roomName).then(id => {
+      if (id) setRoomId(id);
+    });
+
     return unsub;
   }, [roomName]);
 
@@ -823,7 +848,32 @@ function VideoConferenceComponent(props: {
 
   const handleSidebarPanelToggle = (panel: SidebarPanel) => {
     setSidebarCollapsed((prevCollapsed) => {
-      if (!prevCollapsed && activeSidebarPanel === panel) {
+      const isSamePanel = activeSidebarPanel === panel;
+      
+      // Auto-start transcription when 'speak' is opened
+      if (panel === 'speak') {
+        if (prevCollapsed || !isSamePanel) {
+          // If we were in translator, stop it first (though they share the hook, 
+          // we want to ensure Speak starts fresh with its own intent)
+          if (activeSidebarPanel === 'translator') {
+             deepgram.stop();
+          }
+          deepgram.start(audioCaptureOptions?.deviceId as string);
+        }
+        return false; // Always expand
+      }
+
+      // Handle mutual exclusion: if switching away from 'speak', stop transcription
+      if (activeSidebarPanel === 'speak') {
+        deepgram.stop();
+      }
+
+      // If switching to 'translator', also ensure we start fresh if it was listening
+      if (panel === 'translator' && activeSidebarPanel === 'speak') {
+         // deepgram.stop() was called above, so we're good.
+      }
+
+      if (!prevCollapsed && isSamePanel) {
         return true;
       }
       return false;
@@ -879,6 +929,7 @@ function VideoConferenceComponent(props: {
             userId={user?.id || 'guest'}
             audioDevices={audioDevices}
             onListeningChange={handleTranslatorListeningChange}
+            deepgram={deepgram}
           />
         );
       case 'chat':
@@ -905,6 +956,14 @@ function VideoConferenceComponent(props: {
             userId={user?.id || 'guest'}
             audioDevices={audioDevices}
             onListeningChange={handleTranslatorListeningChange}
+            deepgram={deepgram}
+          />
+        );
+      case 'speak':
+        return (
+          <SpeakTranscriptionPanel 
+            deviceId={audioCaptureOptions?.deviceId as string}
+            deepgram={deepgram}
           />
         );
       default:
@@ -1033,6 +1092,8 @@ function VideoConferenceComponent(props: {
                 onTranscriptSegment={handleTranscriptSegment}
                 defaultDeviceId={audioCaptureOptions?.deviceId as string}
                 targetLanguage={targetLanguage}
+                isFloorHolder={isFloorHolder}
+                onClaimFloor={claimFloor}
             />
           )}
 
@@ -1043,6 +1104,7 @@ function VideoConferenceComponent(props: {
             onChatToggle={() => handleSidebarPanelToggle('chat')}
             onSettingsToggle={() => handleSidebarPanelToggle('settings')}
             onTranslatorToggle={() => handleSidebarPanelToggle('translator')}
+            onSpeakToggle={() => handleSidebarPanelToggle('speak')}
 
             onGridToggle={() => setIsGridView(!isGridView)}
             isGridView={isGridView}
@@ -1052,6 +1114,7 @@ function VideoConferenceComponent(props: {
             isAgentOpen={!sidebarCollapsed && activeSidebarPanel === 'agent'}
             isChatOpen={!sidebarCollapsed && activeSidebarPanel === 'chat'}
             isSettingsOpen={!sidebarCollapsed && activeSidebarPanel === 'settings'}
+            isSpeakOpen={!sidebarCollapsed && activeSidebarPanel === 'speak'}
 
 
             isTranscriptionOpen={isTranscriptionEnabled}

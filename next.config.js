@@ -25,6 +25,22 @@ const nextConfig = {
         source: '/(.*)',
         headers: [
           {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET,HEAD,OPTIONS,POST,PUT,PATCH,DELETE',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'autoplay=*, microphone=*, camera=*, geolocation=*, midi=*, fullscreen=*, clipboard-read=*, clipboard-write=*, display-capture=*',
+          },
+          {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin',
           },

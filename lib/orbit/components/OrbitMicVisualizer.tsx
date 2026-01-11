@@ -22,9 +22,9 @@ export function OrbitMicVisualizer({ analyser, isRecording }: OrbitMicVisualizer
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Updated to horizontal 120px
+    // Updated for specific user request: 15px base, 50px peak
     canvas.width = 120; 
-    canvas.height = 40; // Reduced height to fit nicely
+    canvas.height = 50; 
 
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
@@ -51,7 +51,8 @@ export function OrbitMicVisualizer({ analyser, isRecording }: OrbitMicVisualizer
         // Taking a subset of frequency bin prevents flat lines at high freq
         const fIndex = Math.floor(i * (dataArray.length / 3) / bars); 
         const v = dataArray[fIndex] / 255;
-        const bHeight = Math.max(4, v * 30); // Min height 4px, Max ~34px
+        // User request: 15px base, 50px max
+        const bHeight = 15 + (v * 35); 
 
         const x = startX + i * (barWidth + gap);
         // Draw centered vertically

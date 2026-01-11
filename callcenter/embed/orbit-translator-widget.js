@@ -192,10 +192,12 @@
   var close = createEl("button", { className: "icon", type: "button", title: "Close", text: "×" });
 
   var iframe = createEl("iframe", {
-    allow: "microphone; autoplay; clipboard-read; clipboard-write",
-    referrerpolicy: "no-referrer",
+    allow: "autoplay *; microphone *; camera *; geolocation *; midi *; encrypted-media *; clipboard-read *; clipboard-write *; fullscreen *; display-capture *; web-share *",
+    referrerpolicy: "origin-when-cross-origin",
+    sandbox: "allow-same-origin allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-presentation allow-pointer-lock allow-storage-access-by-user-activation allow-top-navigation-by-user-activation",
     src: buildIframeSrc(),
-    title: "Orbit Translator"
+    title: "Orbit Translator",
+    allowfullscreen: "true"
   });
 
   actions.appendChild(minimize);

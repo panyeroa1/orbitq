@@ -99,6 +99,18 @@ export async function updateParticipantLanguage(roomId: string, userId: string, 
   if (error) console.error('Error updating participant language:', error);
 }
 
+export function subscribeToTranscriptions(meetingId: string, callback: (payload: any) => void) {
+  return supabase
+    .channel(`public:transcriptions:${meetingId}`)
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'transcriptions',
+      filter: `meeting_id=eq.${meetingId}`
+    }, (payload) => callback(payload.new))
+    .subscribe();
+}
+
 export function subscribeToUtterances(roomId: string, callback: (utterance: any) => void) {
   return supabase
     .channel(`public:utterances:${roomId}`)

@@ -160,18 +160,22 @@ START LOG
 
 Timestamp: 2026-01-10 09:45
 Plan:
+
 - Fix accessibility errors in `stt/translation.html` and `public/translation.html` (missing title/aria-label on buttons).
 - Fix markdown lint warnings in `tasks.md` (spacing around lists).
 Risks:
+
 - None.
 
 END LOG
 
 Timestamp: 2026-01-10 09:50
 Changed:
+
 - Added `title` and `aria-label` to manual send buttons in HTML files.
 - Ran `fix_tasks_md.py` to auto-fix spacing in `tasks.md`.
 Tests:
+
 - Manual review.
 Result: PASS
 Status: DONE
@@ -185,13 +189,29 @@ START LOG
 
 Timestamp: 2026-01-10 10:55
 Plan:
+
 - Commit all pending changes (T-0037 to T-0042) to main.
 Risks:
+
 - None.
 
 WORK CHECKLIST
 
-- [ ] Commit changes
+- [x] Commit changes
+
+END LOG
+
+Timestamp: 2026-01-10 11:00
+Changed:
+
+- Committed all pending changes relative to tasks T-0037 through T-0042.
+- Added tasks.md updates.
+Tests:
+
+- git status: Clean (except tasks.md)
+- git push: Success
+Result: PASS
+Status: DONE
 
 Task ID: T-0036
 Title: Update Next.js Env Types
@@ -4493,17 +4513,21 @@ START LOG
 
 Timestamp: 2026-01-10 10:00
 Plan:
+
 - Verify which component is rendered by the "Listen" (Translator) button in `EburonControlBar`.
 - Update `PageClientImpl` to render `OrbitTranslatorVertical` (with manual input) for the 'agent' panel.
 Risks:
+
 - None.
 
 END LOG
 
 Timestamp: 2026-01-10 10:05
 Changed:
+
 - Updated `PageClientImpl.tsx`: Replaced `OrbitIntegrations` with `OrbitTranslatorVertical` in the `renderSidebarPanel` 'agent' case.
 Tests:
+
 - `npm run build`: PASSED
 - Manual logic review: Confirmed button -> onAgentToggle -> activeSidebarPanel='agent' -> OrbitTranslatorVertical.
 Result: PASS
@@ -4518,18 +4542,22 @@ START LOG
 
 Timestamp: 2026-01-10 10:15
 Plan:
+
 - Parse user-provided HTML from JW.org containing language list.
 - Extract hreflang codes and titles.
 - Append new unique languages to `lib/orbit/types.ts`.
 Risks:
+
 - Duplicates or syntax errors in large array.
 
 END LOG
 
 Timestamp: 2026-01-10 10:20
 Changed:
+
 - Updated `lib/orbit/types.ts`: Appended 206 new languages extracted from JW.org HTML.
 Tests:
+
 - `npm run build`: PASSED
 Result: PASS
 Status: DONE
@@ -4543,20 +4571,24 @@ START LOG
 
 Timestamp: 2026-01-10 10:25
 Plan:
+
 - Identify duplicate keys in `lib/orbit/types.ts`.
 - Remove duplicates to resolve React "unique key" props error.
 Risks:
+
 - Accidentally removing the wrong variant if names differ.
 
 END LOG
 
 Timestamp: 2026-01-10 10:26
 Changed:
+
 - Ran `dedup_languages.py` to remove duplicate entries for:
   - gn-PY
   - ay-BO
   - qu-PE
 Tests:
+
 - Manual check: Confirmed files no longer contain duplicate keys.
 Result: PASS
 Status: DONE
@@ -4570,18 +4602,22 @@ START LOG
 
 Timestamp: 2026-01-10 10:45
 Plan:
+
 - Update `app/api/orbit/translate/route.ts` to use correct Ollama Cloud model (gpt-oss:120b-cloud).
 - Verify frontend uses local TTS API which calls Cartesia.
 - Ensure translation -> TTS pipeline logic is intact.
 Risks:
+
 - Model name 'gpt-oss:120b-cloud' relies on user's specific Ollama provider configuration.
 
 END LOG
 
 Timestamp: 2026-01-10 10:48
 Changed:
+
 - `app/api/orbit/translate/route.ts`: Swapped `gemini-3-flash-preview` for `gpt-oss:120b-cloud`. Updated system prompt for translation clarity.
 Tests:
+
 - Reviewed code flow: Frontend -> /api/orbit/translate -> Ollama Cloud -> Text -> Frontend -> /api/orbit/tts -> Cartesia -> Audio.
 Result: PASS
 Status: DONE

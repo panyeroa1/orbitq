@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiveSub - Minimal Speak</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Roboto', sans-serif;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Fixed height transcription area */
+        .transcription-viewport {
+            flex: 1;
+            display: flex;
+            align-items: flex-end;
+            padding: 1rem;
+            padding-bottom: 80px;
+        }
+
+        #display-text {
+            width: 100%;
+            font-size: 16px;
+            font-weight: 400;
+            line-height: 1.5;
+            color: #66ff00;
+            
+            /* Max 3 lines with ellipsis */
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            max-height: calc(16px * 1.5 * 3); /* 3 lines */
+            
+            transition: opacity 0.3s ease;
+        }
+
+        .interim {
+            color: rgba(102, 255, 0, 0.5);
+        }
+
+        .final-translation {
+            color: #66ff00;
+        }
+
+        .hidden {
+            opacity: 0;
+        }
+
+        /* Modern Speak Button */
+        .controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: center;
+            background: linear-gradient(to top, rgba(0,0,0,1), transparent);
+        }
+
+        .speak-btn {
+            background: #fff;
+            color: #000;
+            font-family: 'Roboto', sans-serif;
+            font-weight: 500;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 0.8rem 2rem;
+            border: none;
+            border-radius: 100px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .speak-btn.active {
+            background: #ef4444;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="transcription-viewport">
+        <div id="display-text">Tap Speak to Begin</div>
+    </div>
+
+    <div class="controls">
+        <button id="speak-btn" class="speak-btn">Speak</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDTsjYZNWFfZOESP-2QQfbD7jc5fG9FJdc",
+            authDomain: "explore-malaysia-6d28d.firebaseapp.com",
+            databaseURL: "https://explore-malaysia-6d28d-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "explore-malaysia-6d28d",
+            storageBucket: "explore-malaysia-6d28d.appspot.com",
+            messagingSenderId: "869053244601",
+            appId: "1:869053244601:web:6c4095ac519f4b700be768",
+            measurementId: "G-HLP22E9WRJ"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        const speakBtn = document.getElementById('speak-btn');
+        const displayText = document.getElementById('display-text');
+
+        let recognition;
+        let isSpeaking = false;
+        let targetLang = "ms";
+        let autoHideTimeout = null;
+
+        const haptic = (ms) => { if (navigator.vibrate) navigator.vibrate(ms); };
+
+        // Auto-hide after 5 seconds of no new text
+        function scheduleAutoHide() {
+            if (autoHideTimeout) clearTimeout(autoHideTimeout);
+            autoHideTimeout = setTimeout(() => {
+                displayText.classList.add('hidden');
+            }, 5000);
+        }
+
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = async (event) => {
+                displayText.classList.remove('hidden');
+                
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        const translated = await translateText(transcript);
+                        displayText.innerText = translated;
+                        displayText.className = 'final-translation';
+                        scheduleAutoHide();
+                    } else {
+                        displayText.innerText = transcript;
+                        displayText.className = 'interim';
+                    }
+                }
+            };
+
+            recognition.onerror = (e) => console.error(e);
+        }
+
+        async function translateText(text) {
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                return data[0][0][0];
+            } catch (err) {
+                return text;
+            }
+        }
+
+        speakBtn.addEventListener('click', () => {
+            haptic(50);
+            if (!isSpeaking) {
+                recognition.start();
+                speakBtn.innerText = "Stop";
+                speakBtn.classList.add('active');
+                displayText.innerText = "Listening...";
+                displayText.className = 'interim';
+            } else {
+                recognition.stop();
+                speakBtn.innerText = "Speak";
+                speakBtn.classList.remove('active');
+            }
+            isSpeaking = !isSpeaking;
+        });
+    </script>
+</body>
+</html>

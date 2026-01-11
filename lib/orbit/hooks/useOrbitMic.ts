@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { ref, update, serverTimestamp } from 'firebase/database';
 import { rtdb } from '@/lib/orbit/services/firebase';
 
-const DEEPGRAM_API_KEY = 'acb247d15fdeeb3f132bc7491bf35afab2965130';
+const DEEPGRAM_API_KEY = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY || '';
 
 export function useOrbitMic() {
   const [isRecording, setIsRecording] = useState(false);
@@ -45,7 +45,7 @@ export function useOrbitMic() {
       source.connect(analyser);
       analyserRef.current = analyser;
 
-      const url = 'wss://api.deepgram.com/v1/listen?model=nova-3&language=multi&smart_format=true&interim_results=true&background_noise_suppression=true&vad_events=true';
+      const url = 'wss://api.deepgram.com/v1/listen?model=nova-3&language=multi&smart_format=true&interim_results=true&punctuate=true&utterances=true&endpointing=100';
       const socket = new WebSocket(url, ['token', DEEPGRAM_API_KEY]);
       socketRef.current = socket;
 
