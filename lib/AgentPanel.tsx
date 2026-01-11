@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from '@/styles/Eburon.module.css';
 import { supabase } from '@/lib/orbit/services/supabaseClient';
-import { streamTranslation, translateWithOllama } from '@/lib/orbit/services/geminiService';
+import { streamTranslation, translateWithOrbit } from '@/lib/orbit/services/geminiService';
 import { LANGUAGES, Language, RoomState } from '@/lib/orbit/types';
 import { Volume2, Mic, MicOff, StopCircle, ChevronDown, Lock } from 'lucide-react';
 
@@ -36,7 +36,7 @@ export function AgentPanel({ meetingId, onSpeakingStateChange, isTranscriptionEn
   const logsEndRef = useRef<HTMLDivElement>(null);
   
   // TTS Provider State
-  const [ttsProvider, setTtsProvider] = useState<'gemini' | 'cartesia'>('gemini');
+  const [ttsProvider, setTtsProvider] = useState<'gemini' | 'orbit'>('gemini');
 
   // Notify parent of speaking state
   useEffect(() => {
@@ -85,17 +85,17 @@ export function AgentPanel({ meetingId, onSpeakingStateChange, isTranscriptionEn
       let finalTranslation = '';
 
       try {
-        // Step 1: Translate via Ollama Cloud
-        finalTranslation = await translateWithOllama(segment.source_text, targetLang.name);
+        // Step 1: Translate via Orbit Cloud
+        finalTranslation = await translateWithOrbit(segment.source_text, targetLang.name);
         
         // Update log with translated text immediately
         setLogs(prev => prev.map(l => l.id === logId ? { ...l, translation: finalTranslation } : l));
       } catch (err) {
-        console.error("Ollama translation failed, falling back", err);
+        console.error("Orbit translation failed, falling back", err);
         finalTranslation = segment.source_text;
       }
 
-      // Step 2: Playback via Gemini (Orbit) or Cartesia (Agent)
+      // Step 2: Playback via Orbit Engine
       await streamTranslation(
         finalTranslation,
         targetLang.name,
@@ -245,8 +245,8 @@ export function AgentPanel({ meetingId, onSpeakingStateChange, isTranscriptionEn
                  value={ttsProvider}
                  onChange={(e) => setTtsProvider(e.target.value as any)}
                >
-                 <option value="cartesia">Agent</option>
-                 <option value="gemini">Orbit</option>
+                  <option value="orbit">Agent</option>
+                  <option value="gemini">Orbit Engine</option>
                </select>
                <div className={styles.agentSelectIcon}>
                   <ChevronDown size={14} />

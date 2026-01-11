@@ -69,9 +69,9 @@ export class HostCaptionRenderer {
       transcriptNow = now / 1000; // Just use performance.now() in seconds
     } else if (audioContext) {
       transcriptNow = audioContext.currentTime;
-      // Deepgram timestamps are relative to the start of the stream.
+      // Orbit Engine timestamps are relative to the start of the stream.
       // We might need a smoothed offset if there's significant drift, 
-      // but for live Nova-3, they usually stay fairly well aligned to the stream clock.
+      // but for live Engine v2, they usually stay fairly well aligned to the stream clock.
     } else {
       transcriptNow = performance.now() / 1000;
     }

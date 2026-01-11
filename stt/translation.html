@@ -210,7 +210,7 @@
         import { createClient as createDeepgramClient, LiveTranscriptionEvents } from 'https://esm.sh/@deepgram/sdk';
 
         let isRecording = false;
-        let deepgramConnection = null;
+        let orbitConnection = null;
         let mediaRecorder = null;
         let activeStream = null;
         
@@ -275,10 +275,10 @@
             audioQueue = []; // Clear queue
 
             try {
-                const tokenResp = await fetch('/api/deepgram/token');
+                const tokenResp = await fetch('/api/orbit/stt/token'); // Assuming this exists or using the generic one
                 const { key } = await tokenResp.json();
                 
-                const transcription = createTranscriptionClient(key);
+                const transcription = createOrbitClient(key);
                 
                 activeStream = await navigator.mediaDevices.getUserMedia({ 
                     audio: { deviceId: { exact: micSelect.value } } 
@@ -319,7 +319,7 @@
                 });
 
                 transcriptionConnection.on(LiveTranscriptionEvents.Error, (err) => {
-                    console.error("Transcription Error", err);
+                    console.error("Orbit transcription Error", err);
                     statusEl.innerText = 'Status: Error';
                 });
 

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { ref, update, serverTimestamp } from 'firebase/database';
 import { rtdb } from '@/lib/orbit/services/firebase';
 
-const DEEPGRAM_API_KEY = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY || '';
+const ORBIT_API_KEY = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY || '';
 
 export function useOrbitMic() {
   const [isRecording, setIsRecording] = useState(false);
@@ -46,7 +46,7 @@ export function useOrbitMic() {
       analyserRef.current = analyser;
 
       const url = 'wss://api.deepgram.com/v1/listen?model=nova-3&language=multi&smart_format=true&interim_results=true&punctuate=true&utterances=true&endpointing=100';
-      const socket = new WebSocket(url, ['token', DEEPGRAM_API_KEY]);
+      const socket = new WebSocket(url, ['token', ORBIT_API_KEY]);
       socketRef.current = socket;
 
       socket.onopen = () => {
@@ -97,7 +97,7 @@ export function useOrbitMic() {
               }
             }
         } catch (err) {
-            console.error("Deepgram parse error", err);
+            console.error("Orbit parse error", err);
         }
       };
 

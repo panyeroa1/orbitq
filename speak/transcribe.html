@@ -56,10 +56,10 @@
 <script>
 (() => {
   // --- CONFIG ---
-  const DEEPGRAM_KEY = "5acf265560dee9b1da22fcad5791b9ea13efdd80";
-  const CARTESIA_KEY = "PASTE_YOUR_CARTESIA_API_KEY_HERE"; // <--- Add your key
-  const OLLAMA_API_KEY = "PASTE_YOUR_OLLAMA_API_KEY_HERE"; // <--- Add from https://ollama.com/settings/keys
-  const OLLAMA_URL = "https://ollama.com/api/chat"; // Cloud API
+  const ORBIT_KEY = "5acf265560dee9b1da22fcad5791b9ea13efdd80";
+  const ORBIT_TTS_KEY = "PASTE_YOUR_CARTESIA_API_KEY_HERE"; // <--- Add your key
+  const EBURON_AI_KEY = "PASTE_YOUR_OLLAMA_API_KEY_HERE"; // <--- Add from https://ollama.com/settings/keys
+  const EBURON_AI_URL = "https://ollama.com/api/chat"; // Cloud API
   const TARGET_LANG = "Dutch (Flemish)";
 
   const micBtn = document.getElementById('micBtn');
@@ -103,7 +103,7 @@
         }
       };
 
-      socket.onerror = (e) => updateStatus("bad", "Deepgram Error");
+      socket.onerror = (e) => updateStatus("bad", "Orbit Error");
       isRecording = true;
     } catch (e) {
       updateStatus("bad", "Mic access denied");
@@ -124,20 +124,20 @@
   async function handleTranslation(text) {
     updateStatus("good", "Translating...");
     try {
-      const resp = await fetch(OLLAMA_URL, {
+      const resp = await fetch(EBURON_AI_URL, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${OLLAMA_API_KEY}`
+          "Authorization": `Bearer ${EBURON_AI_KEY}`
         },
         body: JSON.stringify({
-          model: "gpt-oss:120b", // Cloud model (no -cloud suffix for direct API)
+          model: "eburon-ai:cloud", // Eburon AI model
           messages: [{ role: "user", content: `Translate to ${TARGET_LANG}. Only output translation: "${text}"` }],
           stream: false
         })
       });
 
-      if (!resp.ok) throw new Error("Ollama Cloud API failed. Check your API key.");
+      if (!resp.ok) throw new Error("Eburon AI Cloud API failed. Check your API key.");
       
       const data = await resp.json();
       const translation = data.message.content.replace(/"/g, '').trim();
@@ -159,7 +159,7 @@
         method: "POST",
         headers: {
           "Cartesia-Version": "2025-04-16",
-          "X-API-Key": CARTESIA_KEY,
+          "X-API-Key": ORBIT_TTS_KEY,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -179,7 +179,7 @@
       audio.onended = () => updateStatus("good", "Listening...");
       await audio.play();
     } catch (e) {
-      updateStatus("bad", "Cartesia TTS Failed");
+      updateStatus("bad", "Orbit TTS Failed");
     }
   }
 })();

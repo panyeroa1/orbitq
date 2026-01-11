@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
     const apiKey = process.env.DEEPGRAM_API_KEY;
     if (!apiKey) {
-      return new NextResponse('Deepgram API key not configured', { status: 503 });
+      return new NextResponse('Orbit API key not configured', { status: 503 });
     }
 
     // Convert blob to buffer
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       dgUrl += `&language=${language}`;
     }
 
-    // Call Deepgram API
+    // Call Orbit Engine API
     const response = await fetch(
       dgUrl,
       {
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const err = await response.text();
-      console.error('Deepgram STT Error:', err);
+      console.error('Orbit STT Error:', err);
       return new NextResponse(err, { status: response.status });
     }
 

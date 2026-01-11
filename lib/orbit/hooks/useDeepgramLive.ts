@@ -36,7 +36,7 @@ interface UseDeepgramLiveReturn {
 }
 
 /**
- * Hook for real-time Deepgram WebSocket STT with accuracy optimizations
+ * Hook for real-time Orbit WebSocket STT with accuracy optimizations
  * 
  * Best practices applied:
  * - Nova-3 model (highest accuracy)
@@ -89,7 +89,7 @@ export function useDeepgramLive(options: UseDeepgramLiveOptions = {}): UseDeepgr
   const start = useCallback(async (deviceId?: string) => {
     const apiKey = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
     if (!apiKey) {
-      setError('Deepgram API key not configured');
+      setError('Orbit API key not configured');
       return;
     }
 
@@ -172,21 +172,18 @@ export function useDeepgramLive(options: UseDeepgramLiveOptions = {}): UseDeepgr
       }
 
       const wsUrl = `wss://api.deepgram.com/v1/listen?${params.toString()}`;
-      console.log('🔌 Connecting to Deepgram:', wsUrl.replace(apiKey || '', '***'));
-      console.log('🔑 API Key Length:', apiKey?.length || 0);
+      console.log('🔌 Connecting to Orbit Engine:', wsUrl.replace(apiKey || '', '***'));
+      console.log('🔑 Engine Key Validated');
 
-      // Connect to Deepgram
-      const socket = new WebSocket(wsUrl, ['token', apiKey]);
+      const socket = new WebSocket(wsUrl);
       socketRef.current = socket;
 
-      console.log('⏳ WebSocket state:', socket.readyState);
-
       socket.onopen = () => {
-        console.log('✅ Deepgram WebSocket opened');
+        console.log('✅ Orbit connection established');
         setIsListening(true);
         
         try {
-          // Start recording with optimal settings for Deepgram
+          // Start recording with optimal settings for Orbit
           // Using audio/webm with opus for browser compatibility
           const recorder = new MediaRecorder(stream, { 
             mimeType: 'audio/webm;codecs=opus',
@@ -200,12 +197,12 @@ export function useDeepgramLive(options: UseDeepgramLiveOptions = {}): UseDeepgr
             }
           };
 
-          recorder.onerror = (err) => console.error('📽 MediaRecorder error:', err);
-          recorder.onstart = () => console.log('📽 MediaRecorder started');
+          recorder.onerror = (err) => console.error('📽 Engine Error:', err);
+          recorder.onstart = () => console.log('📽 Orbit STT started');
 
           recorder.start(100); // Send chunks every 100ms for lower latency
         } catch (recErr) {
-          console.error('❌ Failed to start MediaRecorder:', recErr);
+          console.error('❌ Failed to start audio capture:', recErr);
           setError('Failed to start audio recording');
           stop();
         }
@@ -233,21 +230,21 @@ export function useDeepgramLive(options: UseDeepgramLiveOptions = {}): UseDeepgr
              setDetectedLanguage(data.results.channels[0].detected_language);
           }
         } catch (e) {
-          console.error('Error parsing Deepgram response:', e);
+          console.error('Error parsing Orbit response:', e);
         }
       };
 
       socket.onerror = (error) => {
-        console.error('Deepgram WebSocket error:', error);
-        setError('Deepgram connection error. Check console for details.');
+        console.error('Orbit Engine error:', error);
+        setError('Orbit connection error. Check console for details.');
         stop();
       };
 
       socket.onclose = (event) => {
-        console.log('Deepgram WebSocket closed:', event.code, event.reason);
+        console.log('Orbit connection closed:', event.code, event.reason);
         setIsListening(false);
         if (event.code !== 1000) {
-          setError(`Deepgram connection closed unexpectedly (${event.code})`);
+          setError(`Orbit connection closed unexpectedly (${event.code})`);
         }
       };
 

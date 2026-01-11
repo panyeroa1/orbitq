@@ -20,7 +20,7 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-oss:120b-cloud', // Using user's cloud model
+        model: 'eburon-ai:cloud', // Using Eburon AI model
         stream: true,
         messages: [
           { role: "system", content: "You are a translator. Translate the following text directly to the target language. Do not add any conversational text, notes, or punctuation explanations. Just the translation." },
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const err = await response.text();
-      console.error(`[Translation Failed] Ollama at ${ollamaUrl} returned ${response.status}:`, err);
+      console.error(`[Translation Failed] Orbit at ${ollamaUrl} returned ${response.status}:`, err);
       return new NextResponse(err, { status: response.status });
     }
 

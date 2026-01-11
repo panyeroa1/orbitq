@@ -40,7 +40,7 @@ export function OrbitApp() {
   const [errorMessage, setErrorMessage] = useState('');
   const [transcriptionEngine, setTranscriptionEngine] = useState<'webspeech' | 'deepgram' | 'gemini'>('webspeech');
   
-  // Deepgram / Gemini Refs
+  // Orbit / Gemini Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const geminiSessionRef = useRef<any>(null);
@@ -345,13 +345,13 @@ export function OrbitApp() {
                 if (res.ok) {
                     const data = await res.json();
                     if (data.transcript && data.transcript.trim()) {
-                        console.log(`[Eburon Pro] Transcript: "${data.transcript}"`);
+                        console.log(`[Orbit Pro] Transcript: "${data.transcript}"`);
                         shipSegment(data.transcript); 
                         setLastFinalText(prev => prev + ' ' + data.transcript);
                     }
                 }
               } catch (e) {
-                console.error("Eburon Pro send error", e);
+                console.error("Orbit Pro send error", e);
               }
             }
           }, 2000); // Send every 2 seconds
@@ -362,8 +362,8 @@ export function OrbitApp() {
             stream.getTracks().forEach(t => t.stop());
           };
         } catch (e) {
-          console.error("Eburon Pro Init Error", e);
-          setErrorMessage("Microphone access denied for Eburon Pro");
+          console.error("Orbit Pro Init Error", e);
+          setErrorMessage("Microphone access denied for Orbit Pro");
         }
       };
 
@@ -384,13 +384,13 @@ export function OrbitApp() {
           geminiSessionRef.current = await startTranscriptionSession(
             (text) => {
                if (text.trim()) {
-                 console.log(`[Eburon Live] Transcript: "${text}"`);
+                 console.log(`[Orbit Live] Transcript: "${text}"`);
                  shipSegment(text);
                  setLastFinalText(prev => prev + ' ' + text);
                }
             },
             () => {
-               console.log("[Eburon Live] Session ended");
+               console.log("[Orbit Live] Session ended");
             },
             selectedLanguageRef.current.name || "English"
           );
@@ -426,8 +426,8 @@ export function OrbitApp() {
             if (stream) stream.getTracks().forEach(t => t.stop());
           };
         } catch (e) {
-          console.error("Eburon Live Init Error", e);
-          setErrorMessage("Microphone access denied for Eburon Live");
+          console.error("Orbit Live Init Error", e);
+          setErrorMessage("Microphone access denied for Orbit Live");
         }
       };
 

@@ -95,13 +95,13 @@ export function OrbitTranslatorVertical({
   }>>([]);
 
   const {
-    isListening: isDeepgramListening,
-    transcript: deepgramTranscript,
-    isFinal: isDeepgramFinal,
-    start: startDeepgram,
-    stop: stopDeepgram,
-    error: deepgramError,
-    detectedLanguage: deepgramDetectedLanguage
+    isListening: isOrbitListening,
+    transcript: orbitTranscript,
+    isFinal: isOrbitFinal,
+    start: startOrbit,
+    stop: stopOrbit,
+    error: orbitError,
+    detectedLanguage: orbitDetectedLanguage
   } = deepgram;
 
   // Track if we should play TTS
@@ -133,7 +133,7 @@ export function OrbitTranslatorVertical({
   const selectedLanguageRef = useRef(selectedLanguage);
   useEffect(() => {
     selectedLanguageRef.current = selectedLanguage;
-    // Sync with Deepgram STT
+    // Sync with Orbit STT
     if (deepgram.setLanguage) {
       deepgram.setLanguage(selectedLanguage.code);
     }
@@ -193,7 +193,7 @@ export function OrbitTranslatorVertical({
     }
 
     try {
-      // 1) Translate via Ollama Cloud (streaming response)
+      // 1) Translate via Orbit Cloud (streaming response)
       const targetLang = selectedLanguageRef.current.name;
       const targetCode = selectedLanguageRef.current.code;
       let translated = item.text;
@@ -207,7 +207,7 @@ export function OrbitTranslatorVertical({
           });
           
           if (tRes.ok && tRes.body) {
-            // Handle streaming response from Ollama
+            // Handle streaming response from Orbit
             const reader = tRes.body.getReader();
             const decoder = new TextDecoder();
             let fullText = '';
@@ -217,7 +217,7 @@ export function OrbitTranslatorVertical({
               if (done) break;
               
               const chunk = decoder.decode(value, { stream: true });
-              // Parse NDJSON stream from Ollama
+              // Parse NDJSON stream from Orbit
               const lines = chunk.split('\n').filter(l => l.trim());
               for (const line of lines) {
                 try {
@@ -247,7 +247,7 @@ export function OrbitTranslatorVertical({
         timestamp: new Date()
       }]);
 
-      // 2) TTS via Cartesia
+      // 2) TTS via Orbit
       if (ttsEnabledRef.current) {
         try {
           const ttsRes = await fetch('/api/orbit/tts', {
@@ -272,23 +272,23 @@ export function OrbitTranslatorVertical({
     }
   }, [playNextAudio]);
 
-  // Handle Deepgram transcript changes
+  // Handle Orbit transcript changes
   useEffect(() => {
     // Show interim transcript
-    if (deepgramTranscript && !isDeepgramFinal) {
-      setLiveText(deepgramTranscript);
+    if (orbitTranscript && !isOrbitFinal) {
+      setLiveText(orbitTranscript);
     }
 
     // When final, push to translation queue
-    if (isDeepgramFinal && deepgramTranscript) {
-      if (deepgramTranscript !== lastTranscriptRef.current) {
-        lastTranscriptRef.current = deepgramTranscript;
+    if (isOrbitFinal && orbitTranscript) {
+      if (orbitTranscript !== lastTranscriptRef.current) {
+        lastTranscriptRef.current = orbitTranscript;
         setLiveText('');
         
         processingQueueRef.current.push({
-          text: deepgramTranscript,
+          text: orbitTranscript,
           id: Math.random().toString(),
-          speakerId: userId || 'deepgram-mic',
+          speakerId: userId || 'orbit-mic',
           isMe: true
         });
         processNextInQueue();
@@ -296,12 +296,12 @@ export function OrbitTranslatorVertical({
         // Shared Binding: Persist to DB for others
         if (meetingIdToUse && userId && userId !== '') {
           import('@/lib/orbit/services/orbitService').then(service => {
-            service.saveUtterance(meetingIdToUse, userId, deepgramTranscript, 'multi');
+            service.saveUtterance(meetingIdToUse, userId, orbitTranscript, 'multi');
           });
         }
       }
     }
-  }, [deepgramTranscript, isDeepgramFinal, processNextInQueue, meetingIdToUse, userId]);
+  }, [orbitTranscript, isOrbitFinal, processNextInQueue, meetingIdToUse, userId]);
 
   // Shared Binding: Subscribe to DB Transcripts from others
   useEffect(() => {
@@ -334,23 +334,23 @@ export function OrbitTranslatorVertical({
     };
   }, [meetingIdToUse, userId, processNextInQueue]);
 
-  // Handle Deepgram errors
+  // Handle Orbit errors
   useEffect(() => {
-    if (deepgramError) {
-      toast.error(deepgramError);
+    if (orbitError) {
+      toast.error(orbitError);
     }
-  }, [deepgramError]);
+  }, [orbitError]);
 
-  // Toggle Deepgram listening
+  // Toggle Orbit listening
   const handleListenToggle = useCallback(() => {
-    if (isDeepgramListening) {
-      stopDeepgram();
+    if (isOrbitListening) {
+      stopOrbit();
       onListeningChange?.(false);
     } else {
-      startDeepgram(selectedDeviceId || undefined);
+      startOrbit(selectedDeviceId || undefined);
       onListeningChange?.(true);
     }
-  }, [isDeepgramListening, startDeepgram, stopDeepgram, selectedDeviceId, onListeningChange]);
+  }, [isOrbitListening, startOrbit, stopOrbit, selectedDeviceId, onListeningChange]);
 
   const handleManualSubmit = useCallback(() => {
     if (!manualText.trim()) return;
@@ -378,10 +378,10 @@ export function OrbitTranslatorVertical({
           </div>
           <div className={sharedStyles.sidebarHeaderMeta}>
             <div className="flex items-center gap-1.5 mt-1">
-              {isDeepgramListening && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />}
-              <span className={`text-[10px] uppercase tracking-wide font-medium ${isDeepgramListening ? 'text-rose-400' : 'text-emerald-400'}`}>
-                {isDeepgramListening 
-                  ? (deepgramDetectedLanguage ? `Detected: ${deepgramDetectedLanguage.toUpperCase()}` : 'Listening...')
+              {isOrbitListening && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />}
+              <span className={`text-[10px] uppercase tracking-wide font-medium ${isOrbitListening ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {isOrbitListening 
+                  ? (orbitDetectedLanguage ? `Detected: ${orbitDetectedLanguage.toUpperCase()}` : 'Listening...')
                   : 'Ready'}
               </span>
             </div>
@@ -402,15 +402,15 @@ export function OrbitTranslatorVertical({
       <div className={sharedStyles.agentPanelBody}>
         {/* Main Controls */}
         <div className={sharedStyles.agentControls}>
-          {/* Listen (Deepgram STT) Button */}
+          {/* Listen (Orbit STT) Button */}
           <button
             onClick={handleListenToggle}
             className={`${sharedStyles.agentControlButton} ${
-              isDeepgramListening ? sharedStyles.agentControlButtonActiveListen : ''
+              isOrbitListening ? sharedStyles.agentControlButtonActiveListen : ''
             }`}
           >
-            {isDeepgramListening ? <MicOff size={18} /> : <Mic size={18} />}
-            <span>{isDeepgramListening ? 'Stop Listening' : 'Start Listening'}</span>
+            {isOrbitListening ? <MicOff size={18} /> : <Mic size={18} />}
+            <span>{isOrbitListening ? 'Stop Listening' : 'Start Listening'}</span>
           </button>
 
           {/* TTS Toggle */}

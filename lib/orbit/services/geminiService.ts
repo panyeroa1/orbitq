@@ -4,7 +4,7 @@ import { TranslationResult, EmotionType } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY || '' });
 
-export async function translateWithOllama(text: string, targetLang: string): Promise<string> {
+export async function translateWithOrbit(text: string, targetLang: string): Promise<string> {
   try {
     const res = await fetch('/api/translate', {
       method: 'POST',
@@ -20,7 +20,7 @@ export async function translateWithOllama(text: string, targetLang: string): Pro
     const data = await res.json();
     return data.translation || text;
   } catch (e) {
-    console.error("Internal Translation API Error", e);
+    console.error("Internal Orbit Translation API Error", e);
     return text;
   }
 }
@@ -63,11 +63,11 @@ async function decodeAudioData(
   return buffer;
 }
 
-async function playCartesiaTTS(text: string, ctx: AudioContext) {
+async function playOrbitTTS(text: string, ctx: AudioContext) {
   try {
      const res = await fetch('/api/tts', {
        method: 'POST',
-       body: JSON.stringify({ text, provider: 'cartesia' }),
+       body: JSON.stringify({ text, provider: 'orbit' }),
        headers: { 'Content-Type': 'application/json' }
      });
      if (!res.ok) throw new Error(await res.text());
@@ -78,7 +78,7 @@ async function playCartesiaTTS(text: string, ctx: AudioContext) {
      source.connect(ctx.destination);
      source.start();
   } catch (e) {
-     console.error("Cartesia Playback Error", e);
+     console.error("Orbit TTS Playback Error", e);
   }
 }
 
@@ -95,7 +95,7 @@ export async function streamTranslation(
 
   sourceLangCode: string = 'auto',
   retryCount: number = 0,
-  ttsProvider: 'gemini' | 'cartesia' = 'gemini'
+  ttsProvider: 'orbit' | 'gemini' = 'gemini'
 ) {
   let nextStartTime = 0;
   let fullTranslation = "";
@@ -105,7 +105,7 @@ export async function streamTranslation(
     const sessionPromise = ai.live.connect({
       model: 'models/gemini-2.5-flash-native-audio-preview-12-2025',
       config: {
-        responseModalities: [ttsProvider === 'cartesia' ? Modality.TEXT : Modality.AUDIO],
+        responseModalities: [ttsProvider === 'orbit' ? Modality.TEXT : Modality.AUDIO],
         outputAudioTranscription: {}, 
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
@@ -162,8 +162,8 @@ export async function streamTranslation(
 
           if (message.serverContent?.turnComplete) {
             
-            if (ttsProvider === 'cartesia' && fullTranslation.trim()) {
-                await playCartesiaTTS(fullTranslation, audioCtx);
+            if (ttsProvider === 'orbit' && fullTranslation.trim()) {
+                await playOrbitTTS(fullTranslation, audioCtx);
             }
 
             const waitTime = Math.max(0, (nextStartTime - audioCtx.currentTime) * 1000);
@@ -172,7 +172,7 @@ export async function streamTranslation(
         },
         onclose: () => onEnd(fullTranslation),
         onerror: async (e: any) => {
-          console.warn(`Gemini Live Error (Attempt ${retryCount + 1}/${MAX_RETRIES + 1}):`, e);
+          console.warn(`Orbit Live Error (Attempt ${retryCount + 1}/${MAX_RETRIES + 1}):`, e);
           
           const isServiceUnavailable = e?.message?.includes('unavailable') || e?.status === 503;
           
@@ -211,7 +211,7 @@ export async function startTranscriptionSession(
       config: {
         responseModalities: [Modality.TEXT],
         outputAudioTranscription: {},
-        systemInstruction: `You are a high-fidelity real-time transcription engine. 
+        systemInstruction: `You are Orbit, a high-fidelity real-time transcription engine. 
         Transcribe the incoming audio into ${targetLangName}. 
         Provide ONLY the transcript, no other commentary. 
         If the audio is in another language, translate it to ${targetLangName} in real-time.
@@ -237,7 +237,7 @@ export async function startTranscriptionSession(
         },
         onclose: () => onEnd(),
         onerror: (e) => {
-          console.error("Gemini Live STT Error:", e);
+          console.error("Orbit Live STT Error:", e);
           onEnd();
         }
       }
@@ -258,12 +258,12 @@ export async function startTranscriptionSession(
         try {
           session.close();
         } catch (e) {
-          console.warn("Error closing Gemini session", e);
+          console.warn("Error closing Orbit session", e);
         }
       }
     };
   } catch (err) {
-    console.error("Failed to connect to Gemini Live:", err);
+    console.error("Failed to connect to Orbit Live:", err);
     throw err;
   }
 }

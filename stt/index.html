@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deepgram + Supabase (Bottom Captions)</title>
+    <title>Orbit + Supabase (Bottom Captions)</title>
     
     <!-- External Icons & Fonts -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -210,7 +210,7 @@
         import { createClient as createSupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
         // --- CONFIGURATION ---
-        const DEEPGRAM_API_KEY = 'e4a739b4dadfb8c9247108a21653f3b8f4a4ef10';
+        const ORBIT_API_KEY = 'e4a739b4dadfb8c9247108a21653f3b8f4a4ef10';
         const SUPABASE_URL = 'https://xscdwdnjujpkczfhqrgu.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzY2R3ZG5qdWpwa2N6Zmhxcmd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzMzEwNjgsImV4cCI6MjA3NjkwNzA2OH0.xuVAkWA5y1oDW_jC52I8JJXF-ovU-5LIBsY9yXzy6cA';
 
@@ -316,7 +316,7 @@
         }
 
         // Start Transcription
-        async function startDeepgram(deviceId) {
+        async function startOrbit(deviceId) {
             // Cleanup previous session
             if (currentConnection) currentConnection.requestClose();
             if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
@@ -330,7 +330,7 @@
                     audio: { deviceId: { exact: deviceId } } 
                 });
 
-                const client = createDeepgramClient(DEEPGRAM_API_KEY);
+                const client = createOrbitClient(ORBIT_API_KEY);
                 currentConnection = client.listen.live({
                     model: 'nova-2',
                     language: 'en',

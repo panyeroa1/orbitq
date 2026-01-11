@@ -961,12 +961,12 @@ function VideoConferenceComponent(props: {
           />
         );
       case 'speak':
-        return (
-          <SpeakTranscriptionPanel 
-            deviceId={audioCaptureOptions?.deviceId as string}
-            deepgram={deepgram}
-          />
-        );
+        return                <SpeakTranscriptionPanel 
+                  deviceId={audioCaptureOptions?.deviceId as string} 
+                  orbit={deepgram} 
+                  meetingId={roomName}
+                  userId={user?.id}
+                />;
       default:
         return null;
     }

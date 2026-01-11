@@ -6,7 +6,7 @@ import styles from '@/styles/Eburon.module.css';
 
 interface SpeakTranscriptionPanelProps {
   deviceId?: string;
-  deepgram: {
+  orbit: {
     isListening: boolean;
     transcript: string;
     isFinal: boolean;
@@ -24,7 +24,7 @@ interface SpeakTranscriptionPanelProps {
 
 export function SpeakTranscriptionPanel({ 
   deviceId, 
-  deepgram,
+  orbit: deepgram,
   meetingId,
   roomCode,
   userId
@@ -85,7 +85,7 @@ export function SpeakTranscriptionPanel({
       <div className={styles.sidebarHeader}>
         <div className={styles.sidebarHeaderText}>
           <div className="flex items-center gap-2">
-            <h3 className="uppercase tracking-widest text-[11px] font-bold">Transcription Feed</h3>
+            <h3 className="uppercase tracking-widest text-[11px] font-bold">Orbit Feed</h3>
           </div>
           <div className={styles.sidebarHeaderMeta}>
             <div className="flex items-center gap-1.5 mt-1">

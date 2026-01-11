@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     
     const apiKey = process.env.CARTESIA_API_KEY;
     if (!apiKey) {
-      console.warn("Cartesia API key not configured, returning mock audio (sine wave)");
+      console.warn("Orbit API key not configured, returning mock audio (sine wave)");
       // Generate 1s sine wave at 440Hz
       const sampleRate = 44100;
       const duration = 1.0;
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[Cartesia TTS Error] Status: ${response.status}`, errText);
+      console.error(`[Orbit TTS Error] Status: ${response.status}`, errText);
       return new NextResponse(errText, { status: response.status });
     }
 
