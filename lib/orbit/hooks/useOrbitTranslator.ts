@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRoomContext, useLocalParticipant, useRemoteParticipants } from '@livekit/components-react';
 import { RoomEvent, DataPacket_Kind, RemoteParticipant, Track } from 'livekit-client';
+import { TTSProvider } from '../types';
 
 interface TranslationMessage {
   type: 'orbit_translation';
@@ -17,6 +18,7 @@ interface UseOrbitTranslatorOptions {
   enabled: boolean;
   isSourceSpeaker: boolean;  // True if this user holds the floor for translation
   hearRawAudio?: boolean;    // If true, remote raw audio is NOT muted when translation is enabled
+  ttsProvider?: TTSProvider;
 }
 
 interface UseOrbitTranslatorReturn {
@@ -212,38 +214,85 @@ export function useOrbitTranslator(options: UseOrbitTranslatorOptions): UseOrbit
     resumeAudioContext(); // Ensure AudioContext is running
     const next = ttsQueueRef.current.shift();
     
-    if (next && audioRef.current) {
+    if (next) {
       duckOtherMedia(); // Duck before playing
-      try {
-        const response = await fetch('/api/orbit/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: next.text })
-        });
-        
-        if (response.ok) {
-          const blob = await response.blob();
-          const url = URL.createObjectURL(blob);
-          audioRef.current.src = url;
-          
-          await new Promise<void>((resolve) => {
-            if (!audioRef.current) {
-              resolve();
-              return;
-            }
-            audioRef.current.onended = () => {
-              URL.revokeObjectURL(url);
-              resolve();
-            };
-            audioRef.current.onerror = () => {
-              URL.revokeObjectURL(url);
-              resolve();
-            };
-            audioRef.current.play().catch(() => resolve());
-          });
+
+      // --- WEB (BROWSER) TTS ---
+      if (options.ttsProvider === 'web') {
+        if (!window.speechSynthesis) {
+           console.warn("[Orbit] Web Speech API not supported.");
+           isSpeakingRef.current = false;
+           restoreOtherMedia();
+           return;
         }
-      } catch (e) {
-        console.error('[Orbit] TTS synthesis failed:', e);
+
+        const utterance = new SpeechSynthesisUtterance(next.text);
+        
+        // Attempt to match voice to target language (rough heuristic)
+        // Note: voices are loaded asynchronously, so this might not catch them on first run
+        const voices = window.speechSynthesis.getVoices();
+        const langCode = options.targetLanguage?.split('-')[0]; // e.g. "fr"
+        if (langCode) {
+            const voice = voices.find(v => v.lang.startsWith(langCode));
+            if (voice) utterance.voice = voice;
+        }
+
+        utterance.rate = 1.0;
+        utterance.volume = 1.0;
+
+        await new Promise<void>(resolve => {
+           utterance.onend = () => { resolve(); };
+           utterance.onerror = (e) => { 
+                console.error("[Orbit] Web TTS error", e);
+                resolve(); 
+           };
+           window.speechSynthesis.speak(utterance);
+        });
+
+        restoreOtherMedia();
+        isSpeakingRef.current = false;
+
+        // Process next item in queue
+        if (ttsQueueRef.current.length > 0) {
+          processTTSQueue();
+        }
+        return;
+      }
+
+      // --- CARTESIA (SERVER) TTS ---
+      // (Default / existing logic)
+      if (audioRef.current) {
+        try {
+          const response = await fetch('/api/orbit/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: next.text })
+          });
+          
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            audioRef.current.src = url;
+            
+            await new Promise<void>((resolve) => {
+              if (!audioRef.current) {
+                resolve();
+                return;
+              }
+              audioRef.current.onended = () => {
+                URL.revokeObjectURL(url);
+                resolve();
+              };
+              audioRef.current.onerror = () => {
+                URL.revokeObjectURL(url);
+                resolve();
+              };
+              audioRef.current.play().catch(() => resolve());
+            });
+          }
+        } catch (e) {
+          console.error('[Orbit] TTS synthesis failed:', e);
+        }
       }
       restoreOtherMedia(); // Restore after playing
     }
@@ -254,7 +303,7 @@ export function useOrbitTranslator(options: UseOrbitTranslatorOptions): UseOrbit
     if (ttsQueueRef.current.length > 0) {
       processTTSQueue();
     }
-  }, [duckOtherMedia, restoreOtherMedia, resumeAudioContext]);
+  }, [duckOtherMedia, restoreOtherMedia, resumeAudioContext, options.ttsProvider, options.targetLanguage]); // Added dependencies
 
   // Send translation to all participants via Data Channel (only if source speaker)
   const sendTranslation = useCallback(async (text: string) => {

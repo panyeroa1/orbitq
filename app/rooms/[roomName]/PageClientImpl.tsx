@@ -17,7 +17,7 @@ import { LiveCaptions } from '@/lib/LiveCaptions';
 import { CustomPreJoin } from '@/lib/CustomPreJoin';
 import { useDeepgramLive } from '@/lib/orbit/hooks/useDeepgramLive';
 import { ensureRoomState } from '@/lib/orbit/services/orbitService';
-import { LANGUAGES, RoomState } from '@/lib/orbit/types';
+import { LANGUAGES, RoomState, TTSProvider } from '@/lib/orbit/types';
 import { useOrbitTranslator } from '@/lib/orbit/hooks/useOrbitTranslator';
 import { VisualizerRing } from '@/lib/orbit/components/VisualizerRing';
 
@@ -469,6 +469,7 @@ function VideoConferenceComponent(props: {
   const [targetLanguage, setTargetLanguage] = React.useState(props.userChoices.targetLanguage || 'West Flemish (Belgium)');
   const [roomId, setRoomId] = React.useState<string | null>(null);
   const [hostId, setHostId] = React.useState<string | null>(null);
+  const [ttsProvider, setTtsProvider] = React.useState<TTSProvider>('cartesia');
 
   const roomOptions = React.useMemo((): RoomOptions => {
     let videoCodec: VideoCodec | undefined = props.options.codec ? props.options.codec : 'vp9';
@@ -520,6 +521,8 @@ function VideoConferenceComponent(props: {
         e2eeEnabled={e2eeEnabled}
         e2eePassphrase={e2eePassphrase}
         keyProvider={keyProvider}
+        ttsProvider={ttsProvider}
+        setTtsProvider={setTtsProvider}
       />
     </RoomContext.Provider>
   );
@@ -545,12 +548,15 @@ function RoomInner(props: {
   e2eeEnabled: boolean;
   e2eePassphrase?: string;
   keyProvider: ExternalE2EEKeyProvider;
+  ttsProvider: TTSProvider;
+  setTtsProvider: React.Dispatch<React.SetStateAction<TTSProvider>>;
 }) {
   const { 
     lkRoom, roomName, user, roomState, setRoomState, 
     roomId, setRoomId, hostId, setHostId,
     sourceLanguage, setSourceLanguage, targetLanguage, setTargetLanguage,
-    e2eeEnabled, e2eePassphrase, keyProvider
+    e2eeEnabled, e2eePassphrase, keyProvider,
+    ttsProvider, setTtsProvider
   } = props;
   
   const [activeSidebarPanel, setActiveSidebarPanel] = React.useState<SidebarPanel>('participants');
@@ -601,7 +607,8 @@ function RoomInner(props: {
     targetLanguage,
     enabled: isListening,
     hearRawAudio,
-    isSourceSpeaker: roomState?.activeSpeaker?.userId === user?.id
+    isSourceSpeaker: roomState?.activeSpeaker?.userId === user?.id,
+    ttsProvider,
   });
 
   React.useEffect(() => {
@@ -838,19 +845,26 @@ function RoomInner(props: {
       case 'chat': return <ChatPanel />;
       case 'settings': return <SettingsPanel voiceFocusEnabled={voiceFocusEnabled} onVoiceFocusChange={setVoiceFocusEnabled} vadEnabled={vadEnabled} onVadChange={setVadEnabled} noiseSuppressionEnabled={noiseSuppressionEnabled} onNoiseSuppressionChange={setNoiseSuppressionEnabled} echoCancellationEnabled={echoCancellationEnabled} onEchoCancellationChange={setEchoCancellationEnabled} autoGainEnabled={autoGainEnabled} onAutoGainChange={setAutoGainEnabled} />;
       case 'orbit': return (
-        <OrbitTranslatorPanel 
-          roomCode={roomName} userId={user?.id} isSourceSpeaker={roomState?.activeSpeaker?.userId === user?.id} currentSpeakerId={roomState?.activeSpeaker?.userId} currentSpeakerName={roomState?.activeSpeaker?.userId?.split('__')[0]} 
-          onRequestFloor={async () => roomName && user?.id ? await tryAcquireSpeaker(roomName, user.id, false) : false}
-          onReleaseFloor={async () => roomName && user?.id && await releaseSpeaker(roomName, user.id)}
-          isListening={isListening} setIsListening={setIsListening}
-          targetLanguage={targetLanguage} setTargetLanguage={setTargetLanguage}
+        <OrbitTranslatorPanel
+          roomCode={roomName}
+          userId={user?.identity}
+          isSourceSpeaker={isFloorHolder}
+          onRequestFloor={() => tryAcquireSpeaker(roomName!, user!.identity!, user!.name!)}
+          onReleaseFloor={() => releaseSpeaker(roomName!, user!.identity!)}
+          isListening={isListening}
+          setIsListening={setIsListening}
+          targetLanguage={targetLanguage}
+          setTargetLanguage={setTargetLanguage}
+          hearRawAudio={hearRawAudio}
+          setHearRawAudio={setHearRawAudio}
+          orbitMicState={orbitMicState}
+          sourceLanguage={sourceLanguage}
+          setSourceLanguage={setSourceLanguage}
           incomingTranslations={translator.incomingTranslations}
           isProcessing={translator.isProcessing}
           error={translator.error}
-          // New props for sidebar settings
-          hearRawAudio={hearRawAudio} setHearRawAudio={setHearRawAudio}
-          orbitMicState={orbitMicState}
-          sourceLanguage={sourceLanguage} setSourceLanguage={setSourceLanguage}
+          ttsProvider={ttsProvider}
+          setTtsProvider={setTtsProvider}
         />
       );
       default: return null;

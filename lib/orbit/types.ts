@@ -9,6 +9,7 @@ export interface Participant {
 
 export type ListenPreference = "raw" | "translated";
 export type AudioSource = "mic" | "system";
+export type TTSProvider = "cartesia" | "web";
 
 export type EmotionType = "neutral" | "joy" | "sadness" | "anger" | "fear" | "calm" | "excited";
 

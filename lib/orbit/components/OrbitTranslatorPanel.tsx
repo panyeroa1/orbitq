@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useOrbitTranslator } from '@/lib/orbit/hooks/useOrbitTranslator';
-import { LANGUAGES } from '@/lib/orbit/types';
+import { LANGUAGES, TTSProvider } from '@/lib/orbit/types';
 import sharedStyles from '@/styles/Eburon.module.css';
 import { useSound } from '@/lib/hooks/useSound';
 
@@ -44,6 +44,9 @@ interface OrbitTranslatorPanelProps {
   // State
   isProcessing: boolean;
   error: string | null;
+  // TTS State
+  ttsProvider: TTSProvider;
+  setTtsProvider: (provider: TTSProvider) => void;
 }
 
 export function OrbitTranslatorPanel({ 
@@ -65,7 +68,9 @@ export function OrbitTranslatorPanel({
   setSourceLanguage,
   incomingTranslations,
   isProcessing,
-  error
+  error,
+  ttsProvider,
+  setTtsProvider
 }: OrbitTranslatorPanelProps) {
   const [activeTab, setActiveTab] = React.useState<'source' | 'receiver'>('source');
   const [isRequestingFloor, setIsRequestingFloor] = React.useState(false);
@@ -160,8 +165,50 @@ export function OrbitTranslatorPanel({
 
         <div style={{ padding: '16px', flex: 1, overflowY: 'auto' }}>
           
-          {/* SOURCE TAB */}
-          {activeTab === 'source' && (
+          {/* Settings Tab */}
+        {activeTab === 'source' ? (
+          <div className="space-y-4">
+            
+            {/* --- TTS Provider Selection --- */}
+            <div className={`p-3 rounded-xl border transition-all duration-300 ${
+               isListening 
+                 ? 'bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]' 
+                 : 'bg-white/5 border-white/10'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-white/40">TTS Engine</span>
+                <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                  ttsProvider === 'cartesia' ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'
+                }`}>
+                  {ttsProvider === 'cartesia' ? 'Neural' : 'Local'}
+                </span>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setTtsProvider('cartesia')}
+                  className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-all ${
+                    ttsProvider === 'cartesia' 
+                      ? 'bg-white/10 text-emerald-400 border border-emerald-500/30' 
+                      : 'bg-black/20 text-white/40 hover:bg-white/5'
+                  }`}
+                >
+                  Cartesia (Ultra)
+                </button>
+                <button
+                  onClick={() => setTtsProvider('web')}
+                  className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-all ${
+                    ttsProvider === 'web' 
+                      ? 'bg-white/10 text-emerald-400 border border-emerald-500/30' 
+                      : 'bg-black/20 text-white/40 hover:bg-white/5'
+                  }`}
+                >
+                  Web (Browser)
+                </button>
+              </div>
+            </div>
+
+            {/* --- Language Selection --- */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
               {/* Floor Status */}
@@ -266,7 +313,8 @@ export function OrbitTranslatorPanel({
                 </div>
               )}
             </div>
-          )}
+          </div>
+        ) : null}
 
           {/* RECEIVER TAB */}
           {activeTab === 'receiver' && (
