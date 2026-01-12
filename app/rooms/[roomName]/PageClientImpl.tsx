@@ -23,6 +23,7 @@ import { useDeepgramLive } from '@/lib/orbit/hooks/useDeepgramLive';
 import { ensureRoomState } from '@/lib/orbit/services/orbitService';
 import { LANGUAGES } from '@/lib/orbit/types';
 import { useOrbitTranslator } from '@/lib/orbit/hooks/useOrbitTranslator';
+import { VisualizerRing } from '@/lib/orbit/components/VisualizerRing';
 
 import { HostCaptionOverlay } from '@/lib/orbit/components/HostCaptionOverlay';
 import { CinemaCaptionOverlay } from '@/lib/CinemaCaptionOverlay';
@@ -72,6 +73,7 @@ const CONN_DETAILS_ENDPOINT =
 
 // Icons
 import { useOrbitMic } from '@/lib/orbit/hooks/useOrbitMic';
+import { useSound } from '@/lib/hooks/useSound';
 
 const ChevronRightIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
@@ -83,6 +85,17 @@ const ChevronLeftIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
     <polyline points="15 18 9 12 15 6" />
   </svg>
+);
+
+const TranslatorLogo = () => (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}>
+      <path d="M5 8l6 6" />
+      <path d="M4 14l6-6 2-3" />
+      <path d="M2 5h12" />
+      <path d="M7 2h1" />
+      <path d="M22 22l-5-10-5 10" />
+      <path d="M14 18h6" />
+    </svg>
 );
 
 type SidebarPanel = 'participants' | 'chat' | 'settings' | 'orbit';
@@ -545,7 +558,6 @@ function RoomInner(props: {
   const [waitingList, setWaitingList] = React.useState<{ identity: string; name: string }[]>([]);
   const [admittedIds, setAdmittedIds] = React.useState<Set<string>>(new Set());
   const [isAppMuted, setIsAppMuted] = React.useState(false);
-  const [isOrbSettingsOpen, setIsOrbSettingsOpen] = React.useState(false);
   const [orbPosition, setOrbPosition] = React.useState<{ x: number; y: number } | null>({ x: 20, y: 20 });
   const [isOrbDragging, setIsOrbDragging] = React.useState(false);
   const [e2eeSetupComplete, setE2eeSetupComplete] = React.useState(false);
@@ -555,14 +567,27 @@ function RoomInner(props: {
     ? { left: orbPosition.x, top: orbPosition.y, right: 'auto', bottom: 'auto' }
     : undefined;
 
-  const [orbModalPage, setOrbModalPage] = React.useState<1 | 2>(1);
-  const [isListening, setIsListening] = React.useState(false);
+  const [isListening, setIsListening] = React.useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('orbit_is_listening');
+      return saved !== null ? saved === 'true' : false;
+    }
+    return false;
+  });
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('orbit_is_listening', String(isListening));
+    }
+  }, [isListening]);
   const [hearRawAudio, setHearRawAudio] = React.useState(false);
+  const { playClick, playToggle } = useSound();
 
   const { activeSpeakerId: floorSpeakerId, isFloorHolder, claimFloor, grantFloor } = useMeetingFloor(roomName || '', user?.id || '');
   const [isTranscriptionEnabled, setIsTranscriptionEnabled] = React.useState(true);
 
   // Context-dependent hooks
+  const lastClickTime = React.useRef<number | null>(null);
   const deepgram = useDeepgramLive({ model: 'nova-2', language: 'multi' });
   const orbitMicState = useOrbitMic({ language: sourceLanguage });
   const translator = useOrbitTranslator({
@@ -604,14 +629,6 @@ function RoomInner(props: {
     return () => unsubscribe();
   }, [roomName, setRoomState, setHostId]);
 
-  React.useEffect(() => {
-    if (!isOrbSettingsOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOrbSettingsOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOrbSettingsOpen]);
 
   // Orb Audio Visualizer Loop
   React.useEffect(() => {
@@ -675,6 +692,26 @@ function RoomInner(props: {
 
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0 || (event.target as HTMLElement)?.closest('[data-orb-settings="true"]')) return;
+      
+      // Check for double click
+      const now = Date.now();
+      if (lastClickTime.current && now - lastClickTime.current < 300) {
+        // Double click detected
+        orbitMicState.toggle();
+        if (!orbitMicState.isRecording) {
+            // Starting: Mute app
+            setIsAppMuted(true);
+            playToggle(true);
+        } else {
+            // Stopping: Unmute app
+            setIsAppMuted(false);
+            playToggle(false);
+        }
+        lastClickTime.current = null;
+        return;
+      }
+      lastClickTime.current = now;
+
       const rect = orb.getBoundingClientRect();
       startLeft = rect.left; startTop = rect.top; startX = event.clientX; startY = event.clientY;
       dragging = true; setIsOrbDragging(true);
@@ -803,7 +840,10 @@ function RoomInner(props: {
           incomingTranslations={translator.incomingTranslations}
           isProcessing={translator.isProcessing}
           error={translator.error}
-          transcript={orbitMicState.transcript} isFinal={orbitMicState.isFinal}
+          // New props for sidebar settings
+          hearRawAudio={hearRawAudio} setHearRawAudio={setHearRawAudio}
+          orbitMicState={orbitMicState}
+          sourceLanguage={sourceLanguage} setSourceLanguage={setSourceLanguage}
         />
       );
       default: return null;
@@ -832,7 +872,11 @@ function RoomInner(props: {
         <ConnectionStateToast />
 
         <div ref={orbRef} className={`${roomStyles.orbDock} ${isOrbDragging ? roomStyles.orbDockDragging : ''}`} style={orbStyle} aria-label="Orbit audio orb">
+          <VisualizerRing analyser={translator.analyser} />
           <div className={roomStyles.orbCore} />
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.8)', zIndex: 11, pointerEvents: 'none' }}>
+            <TranslatorLogo />
+          </div>
           <div className={roomStyles.orbVisualizer} aria-hidden="true">
             <div className={roomStyles.orbVizRow}>
               {orbBarIndices.map(i => <span key={`orb-in-${i}`} className={`${roomStyles.orbBar} ${roomStyles.orbBarIn}`} style={{ animationDelay: `${i * 0.12}s` }} />)}
@@ -841,87 +885,11 @@ function RoomInner(props: {
               {orbBarIndices.map(i => <span key={`orb-out-${i}`} className={`${roomStyles.orbBar} ${roomStyles.orbBarOut}`} style={{ animationDelay: `${i * 0.1}s` }} />)}
             </div>
           </div>
-          <button type="button" className={roomStyles.orbSettingsBtn} data-orb-settings="true" onClick={() => setIsOrbSettingsOpen(true)} aria-label="Open Orbit settings" title="Open Orbit settings">
+          <button type="button" className={roomStyles.orbSettingsBtn} data-orb-settings="true" onClick={() => handleSidebarPanelToggle('orbit')} aria-label="Open Orbit settings" title="Open Orbit settings">
             <OrbitIcon size={12} />
           </button>
         </div>
 
-        {isOrbSettingsOpen && (
-          <div className={roomStyles.orbModalOverlay} role="dialog" aria-modal="true" aria-labelledby="orbSettingsTitle" onClick={(e) => e.target === e.currentTarget && setIsOrbSettingsOpen(false)}>
-            <div className={roomStyles.orbModalCard}>
-              <div className={roomStyles.orbModalHeader}>
-                <div id="orbSettingsTitle" className={roomStyles.orbModalTitle}>Success Class</div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button type="button" className={roomStyles.orbModalClose} onClick={() => { setIsOrbSettingsOpen(false); handleSidebarPanelToggle('orbit'); }} title="Open Orbit Sidebar"><OrbitIcon size={18} /></button>
-                  <button type="button" className={roomStyles.orbModalClose} onClick={() => setIsOrbSettingsOpen(false)} title="Close">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
-                  </button>
-                </div>
-              </div>
-              
-              {/* Pagination Tabs */}
-              <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '16px' }}>
-                <button onClick={() => setOrbModalPage(1)} style={{ paddingBottom: '8px', borderBottom: orbModalPage === 1 ? '2px solid #fbbf24' : 'none', background: 'none', color: orbModalPage === 1 ? '#fbbf24' : 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }} title="Source Settings" aria-label="Source Settings">SOURCE</button>
-                <button onClick={() => setOrbModalPage(2)} style={{ paddingBottom: '8px', borderBottom: orbModalPage === 2 ? '2px solid #fbbf24' : 'none', background: 'none', color: orbModalPage === 2 ? '#fbbf24' : 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }} title="Receiving Settings" aria-label="Receiving Settings">RECEIVING</button>
-              </div>
-
-              {orbModalPage === 1 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div>
-                    <label style={{ fontSize: '10px', opacity: 0.6, display: 'block', marginBottom: '8px', textTransform: 'uppercase' }}>Source Language</label>
-                    <select value={sourceLanguage} title="Source Language" onChange={(e) => setSourceLanguage(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '13px' }}>
-                      <option value="multi">Auto-detect</option>
-                      {LANGUAGES.slice(0, 20).map(lang => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '10px', opacity: 0.6, display: 'block', marginBottom: '8px', textTransform: 'uppercase' }}>Audio Source</label>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => orbitMicState.setSource('microphone')} style={{ flex: 1, padding: '10px', borderRadius: '8px', background: orbitMicState.source === 'microphone' ? 'rgba(50, 205, 50, 0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${orbitMicState.source === 'microphone' ? 'rgba(50, 205, 50, 0.3)' : 'rgba(255,255,255,0.1)'}`, color: orbitMicState.source === 'microphone' ? '#32cd32' : 'inherit', fontSize: '12px', cursor: 'pointer' }} title="Use Microphone" aria-label="Use Microphone">Microphone</button>
-                      <button onClick={() => orbitMicState.setSource('screen')} style={{ flex: 1, padding: '10px', borderRadius: '8px', background: orbitMicState.source === 'screen' ? 'rgba(50, 205, 50, 0.1)' : 'rgba(255,255,255,0.05)', border: `1px solid ${orbitMicState.source === 'screen' ? 'rgba(50, 205, 50, 0.3)' : 'rgba(255,255,255,0.1)'}`, color: orbitMicState.source === 'screen' ? '#32cd32' : 'inherit', fontSize: '12px', cursor: 'pointer' }} title="Use Screen Audio" aria-label="Use Screen Audio">Screen</button>
-                    </div>
-                  </div>
-                  <button onClick={orbitMicState.toggle} style={{ width: '100%', padding: '12px', borderRadius: '10px', background: orbitMicState.isRecording ? 'rgba(255, 100, 100, 0.1)' : 'rgba(50, 205, 50, 0.1)', border: `1px solid ${orbitMicState.isRecording ? 'rgba(255, 100, 100, 0.3)' : 'rgba(50, 205, 50, 0.3)'}`, color: orbitMicState.isRecording ? '#ff6b6b' : '#32cd32', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }} title={orbitMicState.isRecording ? 'Stop Orbit' : 'Start Orbit'} aria-label={orbitMicState.isRecording ? 'Stop Orbit' : 'Start Orbit'}>{orbitMicState.isRecording ? 'Stop Orbit' : 'Start Orbit'}</button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div>
-                    <label style={{ fontSize: '10px', opacity: 0.6, display: 'block', marginBottom: '8px', textTransform: 'uppercase' }}>My Language (Translate To)</label>
-                    <select value={targetLanguage} title="Receiving Language" onChange={(e) => setTargetLanguage(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '13px' }}>
-                      {LANGUAGES.map(lang => <option key={lang.code} value={lang.code}>{lang.name}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 500 }}>Global Translation</span>
-                        <span style={{ fontSize: '10px', opacity: 0.5 }}>Listen to translated audio from others</span>
-                    </div>
-                    <button title={isListening ? "Disable Global Translation" : "Enable Global Translation"} aria-label={isListening ? "Disable Global Translation" : "Enable Global Translation"}
-                        onClick={() => setIsListening(!isListening)} 
-                        style={{ width: '40px', height: '20px', borderRadius: '10px', background: isListening ? '#32cd32' : 'rgba(255,255,255,0.1)', position: 'relative', cursor: 'pointer', border: 'none' }}
-                    >
-                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '2px', left: isListening ? '22px' : '2px', transition: 'left 0.2s' }} />
-                    </button>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 500 }}>Hear Raw Audio</span>
-                        <span style={{ fontSize: '10px', opacity: 0.5 }}>Keep original voice active during translation</span>
-                    </div>
-                    <button 
-                        onClick={() => setHearRawAudio(!hearRawAudio)} 
-                        style={{ width: '40px', height: '20px', borderRadius: '10px', background: hearRawAudio ? '#32cd32' : 'rgba(255,255,255,0.1)', position: 'relative', cursor: 'pointer', border: 'none' }}
-                        title={hearRawAudio ? "Mute Raw Audio" : "Unmute Raw Audio"}
-                        aria-label={hearRawAudio ? "Mute Raw Audio" : "Unmute Raw Audio"}
-                    >
-                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '2px', left: hearRawAudio ? '22px' : '2px', transition: 'left 0.2s' }} />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         <div className={roomStyles.videoGridContainer}><VideoGrid allowedParticipantIds={admittedIds} isGridView={isGridView} /></div>
         <div className={`${roomStyles.chatPanel} ${sidebarCollapsed ? roomStyles.chatPanelCollapsed : ''}`}>

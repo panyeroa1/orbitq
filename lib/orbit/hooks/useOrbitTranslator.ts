@@ -34,6 +34,7 @@ interface UseOrbitTranslatorReturn {
   muteRawAudio: (participantId: string) => void;
   unmuteRawAudio: (participantId: string) => void;
   mutedParticipants: Set<string>;
+  analyser: AnalyserNode | null;
 }
 
 /**
@@ -59,18 +60,55 @@ export function useOrbitTranslator(options: UseOrbitTranslatorOptions): UseOrbit
 
   const DUCK_LEVEL = 0.25; // 25% volume during TTS
 
-  // Initialize audio element for TTS playback
+  // Audio Context and Analyser for visualization
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
+
+  // Initialize audio element for TTS playback and setup analysis
   useEffect(() => {
     if (typeof window !== 'undefined' && !audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.autoplay = true;
+
+      // Setup Web Audio API for visualization
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const ctx = new AudioContextClass();
+          audioContextRef.current = ctx;
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 256;
+          analyserRef.current = analyser;
+
+          // Connect audio element to analyser
+          // Note: createMediaElementSource requires the audio element to be in the DOM or at least created? 
+          // It works with new Audio() but we must ensure we don't reconnect if it already exists.
+          const source = ctx.createMediaElementSource(audioRef.current);
+          sourceNodeRef.current = source;
+          source.connect(analyser);
+          analyser.connect(ctx.destination);
+        }
+      } catch (err) {
+        console.warn('Failed to setup audio analysis for Orbit visualizer:', err);
+      }
     }
     return () => {
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(() => {});
+      }
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
       }
     };
+  }, []);
+
+  // Resume AudioContext on user interaction if needed (browser autoplay policy)
+  const resumeAudioContext = useCallback(() => {
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume().catch(() => {});
+    }
   }, []);
 
   // Mute raw audio from a specific participant
@@ -171,6 +209,7 @@ export function useOrbitTranslator(options: UseOrbitTranslatorOptions): UseOrbit
     if (isSpeakingRef.current || ttsQueueRef.current.length === 0) return;
     
     isSpeakingRef.current = true;
+    resumeAudioContext(); // Ensure AudioContext is running
     const next = ttsQueueRef.current.shift();
     
     if (next && audioRef.current) {
@@ -215,7 +254,7 @@ export function useOrbitTranslator(options: UseOrbitTranslatorOptions): UseOrbit
     if (ttsQueueRef.current.length > 0) {
       processTTSQueue();
     }
-  }, [duckOtherMedia, restoreOtherMedia]);
+  }, [duckOtherMedia, restoreOtherMedia, resumeAudioContext]);
 
   // Send translation to all participants via Data Channel (only if source speaker)
   const sendTranslation = useCallback(async (text: string) => {
@@ -277,7 +316,7 @@ export function useOrbitTranslator(options: UseOrbitTranslatorOptions): UseOrbit
         if (data.type === 'orbit_translation' && data.text) {
           // Add to incoming translations list
           setIncomingTranslations(prev => [
-            ...prev.slice(-20), // Keep last 20
+            ...prev.slice(-50), // Keep last 50
             { 
               participantId: participant.identity, 
               text: data.text, 
@@ -308,6 +347,7 @@ export function useOrbitTranslator(options: UseOrbitTranslatorOptions): UseOrbit
     error,
     muteRawAudio,
     unmuteRawAudio,
-    mutedParticipants
+    mutedParticipants,
+    analyser: analyserRef.current
   };
 }
